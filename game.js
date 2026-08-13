@@ -17,6 +17,8 @@
 
   const VIEW_W = 390;
   const WORLD_H = 1880;
+  const TILE_SIZE = 44;
+  const GRID_X = 70;
   const ISLAND_LEFT = 54;
   const ISLAND_RIGHT = 336;
   const HOUSE_Y = 1726;
@@ -31,14 +33,22 @@
     coast: { left: [], right: [] }, houseX: 129, houseLane: 1
   };
 
+  function tileObjectX(column, width) {
+    return GRID_X + column * TILE_SIZE + (TILE_SIZE - width) * .5;
+  }
+
+  function tileObjectY(row, height) {
+    return row * TILE_SIZE + (TILE_SIZE - height) * .5;
+  }
+
   const obstacles = [
-    { type: "penguin", x: 93, y: 490, w: 38, h: 49, min: 73, max: 284, speed: 43, dir: 1 },
-    { type: "fire", x: 233, y: 705, w: 54, h: 44 },
-    { type: "spike", side: "left", x: 65, y: 865, w: 58, h: 54 },
-    { type: "penguin", x: 252, y: 1055, w: 38, h: 49, min: 84, max: 291, speed: 57, dir: -1 },
-    { type: "fire", x: 99, y: 1247, w: 54, h: 44 },
-    { type: "spike", side: "right", x: 281, y: 1405, w: 47, h: 60 },
-    { type: "penguin", x: 132, y: 1511, w: 38, h: 49, min: 75, max: 286, speed: 67, dir: 1 }
+    { type: "penguin", col: 1, fromCol: 1, targetCol: 2, row: 11, x: tileObjectX(1, 38), y: tileObjectY(11, 49), w: 38, h: 49, minCol: 1, maxCol: 4, step: 0, stepDuration: .62, pause: .1, dir: 1 },
+    { type: "fire", col: 4, row: 16, x: tileObjectX(4, 54), y: tileObjectY(16, 44), w: 54, h: 44 },
+    { type: "spike", col: 1, row: 20, x: tileObjectX(1, 58), y: tileObjectY(20, 54), w: 58, h: 54 },
+    { type: "penguin", col: 4, fromCol: 4, targetCol: 3, row: 24, x: tileObjectX(4, 38), y: tileObjectY(24, 49), w: 38, h: 49, minCol: 1, maxCol: 4, step: 0, stepDuration: .52, pause: .18, dir: -1 },
+    { type: "fire", col: 1, row: 28, x: tileObjectX(1, 54), y: tileObjectY(28, 44), w: 54, h: 44 },
+    { type: "spike", col: 3, row: 32, x: tileObjectX(3, 47), y: tileObjectY(32, 60), w: 47, h: 60 },
+    { type: "penguin", col: 2, fromCol: 2, targetCol: 3, row: 34, x: tileObjectX(2, 38), y: tileObjectY(34, 49), w: 38, h: 49, minCol: 1, maxCol: 4, step: 0, stepDuration: .46, pause: .12, dir: 1 }
   ];
 
   function resize() {
@@ -251,12 +261,33 @@
     if (state.flash > 0) state.flash -= dt;
     for (const o of obstacles) {
       if (o.type === "penguin") {
-        const localLeft = leftCoast(o.y + o.h * .5) + 10;
-        const localRight = rightCoast(o.y + o.h * .5) - o.w - 10;
-        o.x += o.speed * o.dir * dt;
-        if (o.x < localLeft || o.x > localRight) { o.x = clamp(o.x, localLeft, localRight); o.dir *= -1; }
-      } else if (o.type === "spike") {
-        o.x = o.side === "left" ? leftCoast(o.y + o.h) + 5 : rightCoast(o.y + o.h) - o.w - 5;
+        o.y = tileObjectY(o.row, o.h);
+        if (o.pause > 0) {
+          o.pause -= dt;
+          o.walkLift = 0;
+          continue;
+        }
+
+        o.step = clamp(o.step + dt / o.stepDuration, 0, 1);
+        const easedStep = o.step * o.step * (3 - 2 * o.step);
+        const movingColumn = o.fromCol + (o.targetCol - o.fromCol) * easedStep;
+        o.x = tileObjectX(movingColumn, o.w);
+        o.walkLift = Math.sin(o.step * Math.PI) * 5;
+
+        if (o.step >= 1) {
+          o.col = o.targetCol;
+          o.fromCol = o.col;
+          let nextColumn = o.col + o.dir;
+          if (nextColumn < o.minCol || nextColumn > o.maxCol) {
+            o.dir *= -1;
+            nextColumn = o.col + o.dir;
+          }
+          o.targetCol = nextColumn;
+          o.step = 0;
+          o.pause = .14;
+          o.walkLift = 0;
+          o.x = tileObjectX(o.col, o.w);
+        }
       }
     }
     for (const p of state.particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 180 * dt; p.life -= dt; }
@@ -355,10 +386,10 @@
     ctx.save(); ctx.clip();
     ctx.fillStyle = "#a9e7ee"; ctx.fillRect(ISLAND_LEFT + 8, 0, ISLAND_RIGHT - ISLAND_LEFT - 16, WORLD_H);
     ctx.fillStyle = "rgba(239,253,251,.28)";
-    for (let y = 0; y < WORLD_H; y += 44) {
-      for (let x = 70; x < 330; x += 44) {
+    for (let y = 0; y < WORLD_H; y += TILE_SIZE) {
+      for (let x = GRID_X; x < 330; x += TILE_SIZE) {
         ctx.strokeStyle = "rgba(39,145,179,.12)"; ctx.lineWidth = 1;
-        ctx.strokeRect(x, y, 44, 44);
+        ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
         if (hash(x * 3 + y) > .84) ctx.fillRect(x + 8, y + 8, 14, 3);
       }
     }
@@ -420,7 +451,7 @@
 
   function drawObstacle(o) {
     if (o.type === "penguin") {
-      ctx.save(); ctx.translate(o.x + (o.dir < 0 ? o.w : 0), o.y); ctx.scale(o.dir < 0 ? -1 : 1, 1);
+      ctx.save(); ctx.translate(o.x + (o.dir < 0 ? o.w : 0), o.y - (o.walkLift || 0)); ctx.scale(o.dir < 0 ? -1 : 1, 1);
       pxRect(5, 5, 29, 39, "#0b2448", "#06203e");
       pxRect(11, 15, 20, 26, "#eafcff");
       pxRect(13, 0, 17, 10, "#0b2448");
