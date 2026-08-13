@@ -465,10 +465,7 @@
         }
       }
       if (state.integrity <= 0) loseBlock("얼음이 녹아버렸어요");
-      if (b && b.y + b.h >= goal.y) {
-        if (b.x + b.w > goal.x && b.x < goal.x + goal.w) landBlock();
-        else loseBlock("집 입구를 지나쳤어요");
-      }
+      if (b && rects(b, goal)) landBlock();
       if (state.block && state.block.y > currentWorldBottom() + 30) loseBlock("바다로 빠졌어요");
       if (state.block) state.targetCameraY = clamp(state.block.y - viewHeight() * .38, 0, cameraLimit());
     }
@@ -730,7 +727,7 @@
       ctx.setLineDash([4, 4]); ctx.strokeStyle = "#ffe072"; ctx.lineWidth = 2;
       ctx.strokeRect(goal.x, goal.y, goal.w, goal.h); ctx.setLineDash([]);
       ctx.fillStyle = "#ffdf72"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
-      ctx.fillText("천장에 안착!", x + IGLOO_W * .5, y - 10);
+      ctx.fillText("이글루 전체에 안착!", x + IGLOO_W * .5, y - 10);
     }
 
     if (active && state.phase === "celebrating") {
