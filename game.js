@@ -44,10 +44,10 @@
   const obstacles = [
     { type: "penguin", col: 1, fromCol: 1, targetCol: 2, row: 11, x: tileObjectX(1, 38), y: tileObjectY(11, 49), w: 38, h: 49, minCol: 1, maxCol: 4, step: 0, stepDuration: .62, pause: .1, dir: 1 },
     { type: "fire", col: 4, row: 16, x: tileObjectX(4, 54), y: tileObjectY(16, 44), w: 54, h: 44 },
-    { type: "spike", col: 1, row: 20, x: tileObjectX(1, 58), y: tileObjectY(20, 54), w: 58, h: 54 },
+    { type: "hole", col: 1, row: 20, x: tileObjectX(1, TILE_SIZE), y: tileObjectY(20, TILE_SIZE), w: TILE_SIZE, h: TILE_SIZE },
     { type: "penguin", col: 4, fromCol: 4, targetCol: 3, row: 24, x: tileObjectX(4, 38), y: tileObjectY(24, 49), w: 38, h: 49, minCol: 1, maxCol: 4, step: 0, stepDuration: .52, pause: .18, dir: -1 },
     { type: "fire", col: 1, row: 28, x: tileObjectX(1, 54), y: tileObjectY(28, 44), w: 54, h: 44 },
-    { type: "spike", col: 3, row: 32, x: tileObjectX(3, 47), y: tileObjectY(32, 60), w: 47, h: 60 },
+    { type: "hole", col: 3, row: 32, x: tileObjectX(3, TILE_SIZE), y: tileObjectY(32, TILE_SIZE), w: TILE_SIZE, h: TILE_SIZE },
     { type: "penguin", col: 2, fromCol: 2, targetCol: 3, row: 34, x: tileObjectX(2, 38), y: tileObjectY(34, 49), w: 38, h: 49, minCol: 1, maxCol: 4, step: 0, stepDuration: .46, pause: .12, dir: 1 }
   ];
 
@@ -213,6 +213,7 @@
     burst(b.x + b.w * .5, b.y + b.h * .5, "water", 24);
     state.phase = "sinking";
     b.sink = 0;
+    b.fallType = "sea";
     b.vx *= .72;
     b.vy = 58;
     b.spin += (b.vx < 0 ? -1 : 1) * 2.4;
@@ -220,7 +221,21 @@
     showToast("첨벙! 얼음 조각이 가라앉아요", 1100);
   }
 
-  function finishSeaDrop() {
+  function dropIntoHole() {
+    const b = state.block;
+    if (!b || state.phase === "sinking") return;
+    burst(b.x + b.w * .5, b.y + b.h * .5, "ice", 14);
+    state.phase = "sinking";
+    b.sink = 0;
+    b.fallType = "hole";
+    b.vx *= .18;
+    b.vy = 28;
+    b.spin += (b.vx < 0 ? -1 : 1) * 2.8;
+    state.combo = 0;
+    showToast("앗! 얼음 조각이 틈새로 빠져요", 1100);
+  }
+
+  function finishDrop() {
     state.block = null;
     state.phase = "making";
     state.roundDelay = 1.15;
@@ -305,11 +320,11 @@
       b.y += (b.vy + b.sink * 75) * dt;
       b.angle += (b.spin + b.vx * .004) * dt;
       b.vx *= Math.pow(.976, dt * 60);
-      if (Math.random() < dt * 18) {
+      if (b.fallType === "sea" && Math.random() < dt * 18) {
         burst(b.x + b.w * (.25 + Math.random() * .5), b.y + b.h * .5, "water", 1);
       }
       state.targetCameraY = clamp(b.y - viewHeight() * .38, 0, WORLD_H - viewHeight());
-      if (b.sink >= .82) finishSeaDrop();
+      if (b.sink >= .82) finishDrop();
     }
 
     if (state.phase === "falling" && b) {
@@ -334,7 +349,15 @@
       for (const o of obstacles) {
         if (b.hit > 0 || !rects(b, o)) continue;
         if (o.type === "penguin") hitBlock(18, o.dir * 145, "펭귄이 툭! 밀었어요");
-        if (o.type === "spike") hitBlock(25, b.x < o.x ? -150 : 150, "뾰족한 빙벽에 쿵!");
+        if (o.type === "hole") {
+          const centerX = b.x + b.w * .5;
+          const centerY = b.y + b.h * .5;
+          if (centerX > o.x + 5 && centerX < o.x + o.w - 5 && centerY > o.y + 5 && centerY < o.y + o.h - 5) {
+            dropIntoHole();
+            updateHud();
+            return;
+          }
+        }
       }
       for (const o of obstacles) {
         if (o.type !== "fire") continue;
@@ -466,9 +489,23 @@
       const flicker = Math.sin(performance.now() * .012) * 4;
       ctx.fillStyle = "#ff765d"; ctx.beginPath(); ctx.moveTo(o.x + 13, o.y + 29); ctx.lineTo(o.x + 27, o.y - 4 + flicker); ctx.lineTo(o.x + 44, o.y + 29); ctx.fill();
       ctx.fillStyle = "#ffd65c"; ctx.beginPath(); ctx.moveTo(o.x + 21, o.y + 29); ctx.lineTo(o.x + 30, o.y + 8 - flicker * .3); ctx.lineTo(o.x + 37, o.y + 29); ctx.fill();
-    } else {
-      ctx.fillStyle = "#d7f7fb"; ctx.strokeStyle = "#348cad"; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(o.x, o.y + o.h); ctx.lineTo(o.x + 5, o.y + 17); ctx.lineTo(o.x + 18, o.y + 31); ctx.lineTo(o.x + 30, o.y); ctx.lineTo(o.x + 39, o.y + 30); ctx.lineTo(o.x + o.w, o.y + 14); ctx.lineTo(o.x + o.w, o.y + o.h); ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (o.type === "hole") {
+      ctx.fillStyle = "rgba(31, 103, 137, .28)"; ctx.fillRect(o.x, o.y, o.w, o.h);
+      ctx.fillStyle = "#0a3155";
+      ctx.beginPath();
+      ctx.moveTo(o.x + 4, o.y + 18); ctx.lineTo(o.x + 13, o.y + 7); ctx.lineTo(o.x + 25, o.y + 10);
+      ctx.lineTo(o.x + 39, o.y + 5); ctx.lineTo(o.x + 36, o.y + 19); ctx.lineTo(o.x + 42, o.y + 29);
+      ctx.lineTo(o.x + 29, o.y + 38); ctx.lineTo(o.x + 17, o.y + 35); ctx.lineTo(o.x + 6, o.y + 40);
+      ctx.lineTo(o.x + 10, o.y + 28); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#031c3a";
+      ctx.beginPath();
+      ctx.moveTo(o.x + 11, o.y + 19); ctx.lineTo(o.x + 18, o.y + 12); ctx.lineTo(o.x + 27, o.y + 15);
+      ctx.lineTo(o.x + 35, o.y + 11); ctx.lineTo(o.x + 31, o.y + 23); ctx.lineTo(o.x + 36, o.y + 29);
+      ctx.lineTo(o.x + 26, o.y + 34); ctx.lineTo(o.x + 18, o.y + 29); ctx.lineTo(o.x + 10, o.y + 34);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = "#4ca7c2"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(o.x + 13, o.y + 8); ctx.lineTo(o.x + 7, o.y + 1); ctx.moveTo(o.x + 38, o.y + 8); ctx.lineTo(o.x + 43, o.y + 1);
+      ctx.moveTo(o.x + 8, o.y + 37); ctx.lineTo(o.x + 2, o.y + 43); ctx.stroke();
     }
   }
 
@@ -553,7 +590,7 @@
     ctx.fillStyle = "rgba(255,255,255,.7)"; ctx.fillRect(-10, 8, 6, 4);
     ctx.restore();
 
-    if (sink > 0) {
+    if (sink > 0 && b.fallType === "sea") {
       const waterY = b.y + b.h * (1 - submerge * .78);
       ctx.globalAlpha = .9 - submerge * .35;
       ctx.fillStyle = "#bff8ff"; ctx.fillRect(b.x - 7, waterY, b.w + 14, 3);
