@@ -218,7 +218,8 @@
     ui.integrityValue.textContent = `${Math.ceil(state.integrity)}%`;
     ui.integrityFill.style.width = `${state.integrity}%`;
     ui.integrityFill.style.background = state.integrity < 35 ? "#ff755e" : state.integrity < 65 ? "#ffd65c" : "#81e7ff";
-    ui.tiltDot.style.left = `${50 + clamp(state.tiltX + state.keyTilt, -1, 1) * 42}%`;
+    const tiltPercent = 50 + clamp(state.tiltX + state.keyTilt, -1, 1) * 50;
+    ui.tiltDot.style.left = `clamp(6.5px, ${tiltPercent}%, calc(100% - 6.5px))`;
   }
 
   async function enableMotion() {
