@@ -14,6 +14,10 @@
     resultCopy: document.getElementById("resultCopy"), resultEyebrow: document.getElementById("resultEyebrow"),
     resultIcon: document.getElementById("resultIcon"), finalScore: document.getElementById("finalScore")
   };
+  ui.tutorial = document.getElementById("tutorialOverlay");
+  ui.tutorialStart = document.getElementById("tutorialStartButton");
+
+  const TUTORIAL_KEY = "ice-breaking-tutorial-seen-v1";
 
   const VIEW_W = 390;
   const WORLD_H = 1880;
@@ -681,7 +685,23 @@
   wrap.addEventListener("pointerup", () => { state.drag = false; state.keyTilt = 0; });
   wrap.addEventListener("pointercancel", () => { state.drag = false; state.keyTilt = 0; });
 
-  ui.startButton.addEventListener("click", async () => { await enableMotion(); resetGame(); });
+  ui.startButton.addEventListener("click", async () => {
+    await enableMotion();
+    let tutorialSeen = false;
+    try { tutorialSeen = localStorage.getItem(TUTORIAL_KEY) === "yes"; } catch (_) {}
+    ui.start.style.display = "none";
+    if (tutorialSeen) {
+      resetGame();
+    } else {
+      ui.tutorial.hidden = false;
+      ui.tutorialStart.focus();
+    }
+  });
+  ui.tutorialStart.addEventListener("click", () => {
+    try { localStorage.setItem(TUTORIAL_KEY, "yes"); } catch (_) {}
+    ui.tutorial.hidden = true;
+    resetGame();
+  });
   ui.retry.addEventListener("click", resetGame);
   ui.pause.addEventListener("click", () => {
     if (state.phase === "intro" || state.phase === "won") return;

@@ -143,6 +143,63 @@ button { font: inherit; }
 .result-card__score span { color: #8bcce1; font-size: 10px; }
 .result-card__score strong { color: var(--yellow); font-size: 24px; letter-spacing: .08em; }
 
+.tutorial-overlay {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.tutorial-overlay[hidden] { display: none; }
+.tutorial-beam {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(119, 229, 255, .25), transparent 48%),
+    #020d20;
+  opacity: .3;
+  backdrop-filter: blur(2px);
+}
+.tutorial-popup {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  width: min(344px, 100%);
+  max-height: calc(100% - 10px);
+  align-items: center;
+  flex-direction: column;
+  overflow: auto;
+  padding: 20px 18px 21px;
+  border: 3px solid #9beaff;
+  background: linear-gradient(180deg, #0b3f70, #061d42);
+  text-align: center;
+  box-shadow: 0 8px 0 #03142e, 0 18px 45px rgba(0, 10, 30, .6), inset 0 0 0 3px rgba(209, 248, 255, .12);
+}
+.tutorial-popup::before,
+.tutorial-popup::after {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: var(--yellow);
+  content: "";
+}
+.tutorial-popup::before { top: 8px; left: 8px; border-top: 3px solid; border-left: 3px solid; }
+.tutorial-popup::after { right: 8px; bottom: 8px; border-right: 3px solid; border-bottom: 3px solid; }
+.tutorial-popup__eyebrow { margin: 0 0 8px !important; color: #8bdff5 !important; font-size: 8px !important; letter-spacing: .18em; }
+.tutorial-popup h2 { margin: 0 0 12px; color: #fff; font-size: 25px; line-height: 1.12; letter-spacing: -.04em; text-shadow: 3px 3px 0 #075c8e; }
+.tutorial-popup h2 em { color: var(--yellow); font-style: normal; }
+.tutorial-popup img { display: block; width: 100%; max-height: 276px; object-fit: contain; border: 2px solid #4f9ec1; background: #061d42; image-rendering: auto; }
+.tutorial-popup > p:not(.tutorial-popup__eyebrow) { margin: 12px 0 14px; color: #c9eff8; font-size: 10px; line-height: 1.65; }
+.tutorial-popup .primary-button { min-height: 53px; }
+
+@media (max-height: 700px) {
+  .tutorial-popup { padding: 14px 15px 16px; }
+  .tutorial-popup h2 { margin-bottom: 8px; font-size: 21px; }
+  .tutorial-popup img { max-height: 225px; }
+  .tutorial-popup > p:not(.tutorial-popup__eyebrow) { margin: 8px 0 10px; line-height: 1.45; }
+}
+
 .statusbar {
   z-index: 4;
   display: flex;
