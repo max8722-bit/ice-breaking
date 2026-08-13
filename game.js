@@ -29,8 +29,10 @@
   const ISLAND_LEFT = 54;
   const ISLAND_RIGHT = 336;
   const HOUSE_OFFSET_Y = 1726;
-  const IGLOO_W = 132;
-  const IGLOO_H = 110;
+  const IGLOO_DESIGN_W = 132;
+  const IGLOO_DESIGN_H = 110;
+  const IGLOO_W = TILE_SIZE * 2;
+  const IGLOO_H = TILE_SIZE * 2;
   const goal = { x: 129, y: HOUSE_OFFSET_Y, w: IGLOO_W, h: IGLOO_H };
   const state = {
     phase: "intro", cameraY: 0, targetCameraY: 0, built: 0, score: 0,
@@ -724,12 +726,17 @@
     }
   }
 
-  function drawHouse(x = state.houseX, y = currentHouseY(), built = state.built, active = true) {
+  function drawHouse(houseX = state.houseX, houseY = currentHouseY(), built = state.built, active = true) {
+    ctx.save();
+    ctx.translate(houseX, houseY);
+    ctx.scale(IGLOO_W / IGLOO_DESIGN_W, IGLOO_H / IGLOO_DESIGN_H);
+    const x = 0;
+    const y = 0;
 
     ctx.fillStyle = "rgba(24, 92, 125, .38)";
-    ctx.fillRect(x - 7, y + IGLOO_H - 1, IGLOO_W + 14, 9);
+    ctx.fillRect(x - 7, y + IGLOO_DESIGN_H - 1, IGLOO_DESIGN_W + 14, 9);
     ctx.fillStyle = "#e8fcff";
-    ctx.fillRect(x - 5, y + IGLOO_H - 6, IGLOO_W + 10, 7);
+    ctx.fillRect(x - 5, y + IGLOO_DESIGN_H - 6, IGLOO_DESIGN_W + 10, 7);
 
     ctx.fillStyle = "#2f85a4";
     ctx.beginPath();
@@ -780,18 +787,20 @@
     ctx.quadraticCurveTo(x + 66, y + 68, x + 80, y + 84); ctx.lineTo(x + 80, y + 105); ctx.closePath(); ctx.fill();
     ctx.fillStyle = "#ffd35d"; ctx.fillRect(x + 61, y + 91, 10, 14);
     ctx.fillStyle = "#ff745d"; ctx.fillRect(x + 64, y + 96, 5, 9);
+    ctx.restore();
 
     if (active && built < 3) {
       ctx.setLineDash([4, 4]); ctx.strokeStyle = "#ffe072"; ctx.lineWidth = 2;
       ctx.strokeRect(goal.x, goal.y, goal.w, goal.h); ctx.setLineDash([]);
       ctx.fillStyle = "#ffdf72"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
-      ctx.fillText("이글루 전체에 안착!", x + IGLOO_W * .5, y - 10);
+      ctx.fillText("이글루 전체에 안착!", houseX + IGLOO_W * .5, houseY - 10);
     }
 
     if (active && state.phase === "celebrating") {
-      const islandMiddle = (leftCoast(y + 80) + rightCoast(y + 80)) * .5;
-      const workerX = x + IGLOO_W * .5 < islandMiddle ? x + IGLOO_W + 8 : x - 52;
-      drawCelebratingWorker(workerX, y + 49);
+      const workerY = houseY + IGLOO_H * .45;
+      const islandMiddle = (leftCoast(workerY) + rightCoast(workerY)) * .5;
+      const workerX = houseX + IGLOO_W * .5 < islandMiddle ? houseX + IGLOO_W + 8 : houseX - 52;
+      drawCelebratingWorker(workerX, workerY);
     }
   }
 
