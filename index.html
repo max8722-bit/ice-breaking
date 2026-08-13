@@ -13,6 +13,10 @@
       <section class="game-phone" aria-label="아이스 브레이킹 게임">
         <div class="canvas-wrap" id="canvasWrap">
           <canvas id="gameCanvas" width="390" height="700" aria-label="게임 화면"></canvas>
+          <div class="character-panel" aria-label="캐릭터 체력">
+            <div class="character-panel__label"><span>캐릭터 체력</span><strong id="playerEnergyValue">100%</strong></div>
+            <div class="character-panel__track"><i id="playerEnergyFill"></i></div>
+          </div>
           <div class="build-panel" aria-label="이글루 완성도">
             <div class="build-meter__label"><span>이글루 완성도</span><strong id="buildCount">0 / 3</strong></div>
             <div class="build-meter__track"><i id="buildFill"></i></div>
@@ -45,10 +49,10 @@
           </section>
 
           <section class="result-card" id="resultCard" hidden>
-            <p class="result-card__eyebrow" id="resultEyebrow">MISSION COMPLETE</p>
+            <p class="result-card__eyebrow" id="resultEyebrow">EXPEDITION OVER</p>
             <div class="result-card__igloo" id="resultIcon" aria-hidden="true">⌂</div>
-            <h2 id="resultTitle">따뜻한 이글루 완성!</h2>
-            <p id="resultCopy">세 개의 얼음 조각이 꼭 맞았어요.</p>
+            <h2 id="resultTitle">게임 오버</h2>
+            <p id="resultCopy">캐릭터의 체력이 모두 소진됐어요.</p>
             <div class="result-card__score"><span>최종 점수</span><strong id="finalScore">0000</strong></div>
             <button class="primary-button" id="retryButton" type="button"><span>다시 만들기</span><small>새 얼음집 시작</small></button>
           </section>

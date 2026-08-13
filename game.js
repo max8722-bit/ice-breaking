@@ -9,6 +9,7 @@
     startButton: document.getElementById("startButton"), retry: document.getElementById("retryButton"),
     pause: document.getElementById("pauseButton"), toast: document.getElementById("toast"),
     buildCount: document.getElementById("buildCount"), buildFill: document.getElementById("buildFill"),
+    playerEnergyFill: document.getElementById("playerEnergyFill"), playerEnergyValue: document.getElementById("playerEnergyValue"),
     integrityFill: document.getElementById("integrityFill"), integrityValue: document.getElementById("integrityValue"),
     tiltDot: document.getElementById("tiltDot"), resultTitle: document.getElementById("resultTitle"),
     resultCopy: document.getElementById("resultCopy"), resultEyebrow: document.getElementById("resultEyebrow"),
@@ -20,23 +21,28 @@
   const TUTORIAL_KEY = "ice-breaking-tutorial-seen-v1";
 
   const VIEW_W = 390;
-  const WORLD_H = 1880;
+  const STAGE_HEIGHT = 1848;
   const TILE_SIZE = 44;
   const GRID_X = 70;
   const ISLAND_LEFT = 54;
   const ISLAND_RIGHT = 336;
-  const HOUSE_Y = 1726;
+  const HOUSE_OFFSET_Y = 1726;
   const IGLOO_W = 132;
   const IGLOO_H = 110;
-  const goal = { x: 129, y: HOUSE_Y, w: IGLOO_W, h: IGLOO_H };
+  const goal = { x: 129, y: HOUSE_OFFSET_Y, w: IGLOO_W, h: IGLOO_H };
   const state = {
     phase: "intro", cameraY: 0, targetCameraY: 0, built: 0, score: 0,
     integrity: 100, tiltX: 0, tiltY: 0, keyTilt: 0, paused: false,
     baseBeta: null, lastTime: 0, roundDelay: 0, flash: 0, particles: [],
     block: null, drag: false, dragX: 0, combo: 0,
     coast: { left: [], right: [] }, houseX: 129, houseLane: 1,
-    celebration: 0
+    celebration: 0, stage: 0, stageBase: 0, completedIgloos: 0,
+    energy: 100, generatedCoastStage: -1, pastHouses: []
   };
+
+  function currentHouseY() { return state.stageBase + HOUSE_OFFSET_Y; }
+  function currentWorldBottom() { return state.stageBase + STAGE_HEIGHT; }
+  function cameraLimit() { return Math.max(0, currentWorldBottom() - viewHeight()); }
 
   function tileObjectX(column, width) {
     return GRID_X + column * TILE_SIZE + (TILE_SIZE - width) * .5;
@@ -77,12 +83,13 @@
 
   function makeBay(center, radius, depth) { return { center, radius, depth }; }
 
-  function generateCoast() {
+  function generateStageCoast(stageIndex) {
+    const offset = stageIndex * STAGE_HEIGHT;
     const leftBands = [[330, 500], [650, 830], [1030, 1210], [1330, 1510]];
     const rightBands = [[410, 590], [760, 950], [1120, 1300], [1380, 1540]];
     const pick = bands => bands
       .map(([min, max]) => makeBay(
-        min + Math.random() * (max - min),
+        offset + min + Math.random() * (max - min),
         70 + Math.random() * 48,
         22 + Math.random() * 24
       ))
@@ -90,8 +97,20 @@
       .slice(0, 2 + Math.floor(Math.random() * 2))
       .sort((a, b) => a.center - b.center);
 
-    state.coast.left = pick(leftBands);
-    state.coast.right = pick(rightBands);
+    state.coast.left.push(...pick(leftBands));
+    state.coast.right.push(...pick(rightBands));
+    state.generatedCoastStage = stageIndex;
+  }
+
+  function ensureCoastThrough(stageIndex) {
+    while (state.generatedCoastStage < stageIndex) generateStageCoast(state.generatedCoastStage + 1);
+  }
+
+  function generateCoast() {
+    state.coast.left = [];
+    state.coast.right = [];
+    state.generatedCoastStage = -1;
+    ensureCoastThrough(2);
   }
 
   function bayInset(y, bays) {
@@ -112,14 +131,15 @@
   }
 
   function randomizeHouse() {
-    const sampleY = HOUSE_Y + IGLOO_H * .55;
+    const houseY = currentHouseY();
+    const sampleY = houseY + IGLOO_H * .55;
     const minX = Math.ceil(leftCoast(sampleY) + 10);
     const maxX = Math.floor(rightCoast(sampleY) - IGLOO_W - 10);
     const positions = [minX, Math.round((minX + maxX) * .5), maxX];
     state.houseLane = Math.floor(Math.random() * positions.length);
     state.houseX = positions[state.houseLane];
     goal.x = state.houseX;
-    goal.y = HOUSE_Y;
+    goal.y = houseY;
     goal.w = IGLOO_W;
     goal.h = IGLOO_H;
   }
@@ -131,9 +151,33 @@
     showToast.timer = setTimeout(() => ui.toast.classList.remove("is-visible"), ms);
   }
 
+  function positionStageObstacles() {
+    for (const o of obstacles) {
+      o.y = state.stageBase + tileObjectY(o.row, o.h);
+      if (o.type !== "penguin") continue;
+      o.fromCol = o.col;
+      o.targetCol = clamp(o.col + o.dir, o.minCol, o.maxCol);
+      if (o.targetCol === o.col) {
+        o.dir *= -1;
+        o.targetCol = clamp(o.col + o.dir, o.minCol, o.maxCol);
+      }
+      o.step = 0;
+      o.pause = .12;
+      o.walkLift = 0;
+      o.x = tileObjectX(o.col, o.w);
+    }
+  }
+
   function updateHud() {
     ui.buildCount.textContent = `${state.built} / 3`;
     ui.buildFill.style.width = `${state.built / 3 * 100}%`;
+    ui.playerEnergyValue.textContent = `${Math.ceil(state.energy)}%`;
+    ui.playerEnergyFill.style.width = `${state.energy}%`;
+    ui.playerEnergyFill.style.background = state.energy < 25
+      ? "repeating-linear-gradient(90deg, #ff755e 0 14px, #bf3f45 14px 17px)"
+      : state.energy < 55
+        ? "repeating-linear-gradient(90deg, #ffd65c 0 14px, #d88a39 14px 17px)"
+        : "repeating-linear-gradient(90deg, #70e4f7 0 14px, #38a7ce 14px 17px)";
     ui.integrityValue.textContent = `${Math.ceil(state.integrity)}%`;
     ui.integrityFill.style.width = `${state.integrity}%`;
     ui.integrityFill.style.background = state.integrity < 35 ? "#ff755e" : state.integrity < 65 ? "#ffd65c" : "#81e7ff";
@@ -161,7 +205,10 @@
   }
 
   function resetGame() {
+    state.stage = 0; state.stageBase = 0; state.completedIgloos = 0; state.energy = 100;
+    state.pastHouses.length = 0;
     generateCoast();
+    positionStageObstacles();
     randomizeHouse();
     state.phase = "making";
     state.cameraY = 0; state.targetCameraY = 0; state.built = 0; state.score = 0;
@@ -173,10 +220,10 @@
   }
 
   function spawnBlock() {
-    state.block = { x: 178, y: 168, w: 34, h: 34, vx: 0, vy: 44, angle: 0, spin: 0, hit: 0 };
+    state.block = { x: 178, y: state.stageBase + 168, w: 34, h: 34, vx: 0, vy: 44, angle: 0, spin: 0, hit: 0 };
     state.integrity = 100;
     state.phase = "falling";
-    burst(195, 164, "ice", 12);
+    burst(195, state.stageBase + 164, "ice", 12);
     showToast("기울여서 집까지 보내세요!", 1250);
   }
 
@@ -206,9 +253,10 @@
     state.block = null;
     state.phase = "making";
     state.roundDelay = 1.5;
-    state.cameraY = 0;
-    state.targetCameraY = 0;
+    state.cameraY = state.stageBase;
+    state.targetCameraY = state.stageBase;
     state.combo = 0;
+    state.energy = clamp(state.energy - 9, 0, 100);
     showToast(`${reason} — 새 조각을 만들어요`, 1500);
   }
 
@@ -223,6 +271,7 @@
     b.vy = 58;
     b.spin += (b.vx < 0 ? -1 : 1) * 2.4;
     state.combo = 0;
+    state.energy = clamp(state.energy - 7, 0, 100);
     showToast("첨벙! 얼음 조각이 가라앉아요", 1100);
   }
 
@@ -237,6 +286,7 @@
     b.vy = 28;
     b.spin += (b.vx < 0 ? -1 : 1) * 2.8;
     state.combo = 0;
+    state.energy = clamp(state.energy - 7, 0, 100);
     showToast("앗! 얼음 조각이 틈새로 빠져요", 1100);
   }
 
@@ -244,7 +294,7 @@
     state.block = null;
     state.phase = "making";
     state.roundDelay = 1.15;
-    state.targetCameraY = 0;
+    state.targetCameraY = state.stageBase;
     showToast("새 얼음 조각을 만들어요", 1000);
   }
 
@@ -257,33 +307,64 @@
     state.block = null;
     updateHud();
     if (state.built >= 3) {
+      state.completedIgloos++;
+      state.energy = clamp(state.energy + 12, 0, 100);
       state.phase = "celebrating";
       state.celebration = 0;
-      state.targetCameraY = clamp(HOUSE_Y - viewHeight() * .58, 0, WORLD_H - viewHeight());
-      showToast("이글루 완성! 신난다!", 1500);
+      state.targetCameraY = clamp(currentHouseY() - viewHeight() * .58, 0, cameraLimit());
+      showToast("이글루 완성! 다음 구간으로 내려가요!", 1700);
     } else {
       state.phase = "making";
       state.roundDelay = 1.65;
       showToast(`착! ${state.built}번째 얼음 안착`, 1250);
-      setTimeout(() => { state.targetCameraY = 0; }, 500);
+      setTimeout(() => { if (state.phase === "making") state.targetCameraY = state.stageBase; }, 500);
     }
   }
 
-  function showResult() {
-    ui.resultEyebrow.textContent = "MISSION COMPLETE";
-    ui.resultTitle.textContent = "따뜻한 이글루 완성!";
-    ui.resultCopy.textContent = "세 개의 얼음 조각이 꼭 맞았어요. 펭귄도 놀러 왔네요!";
-    ui.resultIcon.textContent = "⌂";
+  function advanceStage() {
+    state.pastHouses.push({ x: state.houseX, y: currentHouseY() });
+    state.stage++;
+    state.stageBase = state.stage * STAGE_HEIGHT;
+    state.built = 0;
+    state.integrity = 100;
+    state.block = null;
+    state.combo = 0;
+    state.celebration = 0;
+    state.roundDelay = 1.35;
+    state.phase = "making";
+    ensureCoastThrough(state.stage + 2);
+    positionStageObstacles();
+    randomizeHouse();
+    state.targetCameraY = state.stageBase;
+    updateHud();
+    showToast(`${state.stage + 1}번째 깨진 이글루를 수리하세요!`, 1800);
+  }
+
+  function showGameOver() {
+    if (state.phase === "gameover") return;
+    state.phase = "gameover";
+    state.block = null;
+    ui.resultEyebrow.textContent = "EXPEDITION OVER";
+    ui.resultTitle.textContent = "게임 오버";
+    ui.resultCopy.textContent = `완성한 이글루 ${state.completedIgloos}채 · 캐릭터의 체력이 모두 소진됐어요.`;
+    ui.resultIcon.textContent = "❄";
     ui.finalScore.textContent = String(state.score).padStart(4, "0");
     ui.result.hidden = false;
   }
 
   function update(dt) {
     if (state.paused || state.phase === "intro") return;
+    if (state.phase === "gameover") return;
+    state.energy = clamp(state.energy - dt * .78, 0, 100);
+    if (state.energy <= 0) {
+      updateHud();
+      showGameOver();
+      return;
+    }
     if (state.flash > 0) state.flash -= dt;
     for (const o of obstacles) {
       if (o.type === "penguin") {
-        o.y = tileObjectY(o.row, o.h);
+        o.y = state.stageBase + tileObjectY(o.row, o.h);
         if (o.pause > 0) {
           o.pause -= dt;
           o.walkLift = 0;
@@ -317,14 +398,11 @@
 
     if (state.phase === "celebrating") {
       state.celebration += dt;
-      state.targetCameraY = clamp(HOUSE_Y - viewHeight() * .58, 0, WORLD_H - viewHeight());
+      state.targetCameraY = clamp(currentHouseY() - viewHeight() * .58, 0, cameraLimit());
       if (Math.random() < dt * 14) {
-        burst(state.houseX + IGLOO_W * Math.random(), HOUSE_Y + 12 + Math.random() * 85, "snow", 1);
+        burst(state.houseX + IGLOO_W * Math.random(), currentHouseY() + 12 + Math.random() * 85, "snow", 1);
       }
-      if (state.celebration >= 2.6) {
-        state.phase = "won";
-        showResult();
-      }
+      if (state.celebration >= 2.35) advanceStage();
     }
 
     if (state.phase === "making") {
@@ -342,7 +420,7 @@
       if (b.fallType === "sea" && Math.random() < dt * 18) {
         burst(b.x + b.w * (.25 + Math.random() * .5), b.y + b.h * .5, "water", 1);
       }
-      state.targetCameraY = clamp(b.y - viewHeight() * .38, 0, WORLD_H - viewHeight());
+      state.targetCameraY = clamp(b.y - viewHeight() * .38, 0, cameraLimit());
       if (b.sink >= .82) finishDrop();
     }
 
@@ -391,8 +469,8 @@
         if (b.x + b.w > goal.x && b.x < goal.x + goal.w) landBlock();
         else loseBlock("집 입구를 지나쳤어요");
       }
-      if (state.block && state.block.y > WORLD_H + 30) loseBlock("바다로 빠졌어요");
-      if (state.block) state.targetCameraY = clamp(state.block.y - viewHeight() * .38, 0, WORLD_H - viewHeight());
+      if (state.block && state.block.y > currentWorldBottom() + 30) loseBlock("바다로 빠졌어요");
+      if (state.block) state.targetCameraY = clamp(state.block.y - viewHeight() * .38, 0, cameraLimit());
     }
     state.cameraY += (state.targetCameraY - state.cameraY) * Math.min(1, dt * 5.5);
     updateHud();
@@ -417,18 +495,21 @@
     }
   }
 
-  function drawIsland() {
+  function drawIsland(vh) {
+    const viewTop = Math.max(0, Math.floor((state.cameraY - 70) / 14) * 14);
+    const viewBottom = state.cameraY + vh + 70;
     ctx.save(); ctx.translate(0, -state.cameraY);
-    ctx.beginPath(); ctx.moveTo(leftCoast(0), 0);
-    for (let y = 0; y <= WORLD_H; y += 14) ctx.lineTo(leftCoast(y), y);
-    for (let y = WORLD_H; y >= 0; y -= 14) ctx.lineTo(rightCoast(y), y);
+    ctx.beginPath(); ctx.moveTo(leftCoast(viewTop), viewTop);
+    for (let y = viewTop; y <= viewBottom; y += 14) ctx.lineTo(leftCoast(y), y);
+    for (let y = viewBottom; y >= viewTop; y -= 14) ctx.lineTo(rightCoast(y), y);
     ctx.closePath(); ctx.fillStyle = "#77cbe0"; ctx.fill();
     ctx.strokeStyle = "#d8f8fb"; ctx.lineWidth = 7; ctx.stroke();
 
     ctx.save(); ctx.clip();
-    ctx.fillStyle = "#a9e7ee"; ctx.fillRect(ISLAND_LEFT + 8, 0, ISLAND_RIGHT - ISLAND_LEFT - 16, WORLD_H);
+    ctx.fillStyle = "#a9e7ee"; ctx.fillRect(ISLAND_LEFT + 8, viewTop, ISLAND_RIGHT - ISLAND_LEFT - 16, viewBottom - viewTop);
     ctx.fillStyle = "rgba(239,253,251,.28)";
-    for (let y = 0; y < WORLD_H; y += TILE_SIZE) {
+    const firstTileY = Math.floor(viewTop / TILE_SIZE) * TILE_SIZE;
+    for (let y = firstTileY; y < viewBottom; y += TILE_SIZE) {
       for (let x = GRID_X; x < 330; x += TILE_SIZE) {
         ctx.strokeStyle = "rgba(39,145,179,.12)"; ctx.lineWidth = 1;
         ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
@@ -438,13 +519,18 @@
     ctx.restore();
 
     ctx.fillStyle = "#4ca8c5";
-    for (let y = 55; y < WORLD_H; y += 92) {
+    const firstEdgeY = Math.floor(viewTop / 92) * 92 + 55;
+    for (let y = firstEdgeY; y < viewBottom; y += 92) {
       ctx.fillRect(leftCoast(y) + 2, y, 8 + hash(y) * 13, 6);
       ctx.fillRect(rightCoast(y + 39) - 15, y + 39, 12, 5);
     }
-    drawBayMarkers();
+    drawBayMarkers(viewTop, viewBottom);
     drawTopWorkshop();
     for (const o of obstacles) drawObstacle(o);
+    for (const house of state.pastHouses) {
+      if (house.y + IGLOO_H < viewTop || house.y > viewBottom) continue;
+      drawHouse(house.x, house.y, 3, false);
+    }
     drawHouse();
     if (state.block) drawBlock(state.block);
     for (const p of state.particles) { ctx.globalAlpha = clamp(p.life * 2, 0, 1); pxRect(p.x, p.y, p.size, p.size, p.color); }
@@ -452,12 +538,13 @@
     ctx.restore();
   }
 
-  function drawBayMarkers() {
+  function drawBayMarkers(viewTop, viewBottom) {
     ctx.save();
     ctx.font = "bold 8px sans-serif";
     ctx.textAlign = "center";
     for (const [side, bays] of [["left", state.coast.left], ["right", state.coast.right]]) {
       for (const bay of bays) {
+        if (bay.center < viewTop - 30 || bay.center > viewBottom + 30) continue;
         const x = side === "left" ? leftCoast(bay.center) + 14 : rightCoast(bay.center) - 14;
         ctx.fillStyle = "rgba(20,105,145,.42)";
         ctx.fillRect(x - 8, bay.center - 16, 16, 4);
@@ -470,13 +557,14 @@
   }
 
   function drawTopWorkshop() {
-    ctx.fillStyle = "#5cb6ce"; ctx.fillRect(71, 54, 248, 99);
-    ctx.fillStyle = "#dffcff"; ctx.fillRect(80, 48, 230, 9);
-    ctx.fillStyle = "#337fa9"; ctx.fillRect(112, 95, 166, 17);
-    ctx.fillStyle = "#1d5b87"; ctx.fillRect(132, 112, 126, 8);
-    if (state.phase !== "celebrating" && state.phase !== "won") drawWorker(178, 56);
+    const base = state.stageBase;
+    ctx.fillStyle = "#5cb6ce"; ctx.fillRect(71, base + 54, 248, 99);
+    ctx.fillStyle = "#dffcff"; ctx.fillRect(80, base + 48, 230, 9);
+    ctx.fillStyle = "#337fa9"; ctx.fillRect(112, base + 95, 166, 17);
+    ctx.fillStyle = "#1d5b87"; ctx.fillRect(132, base + 112, 126, 8);
+    if (state.phase !== "celebrating" && state.phase !== "gameover") drawWorker(178, base + 56);
     ctx.fillStyle = "#e9fbff"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
-    ctx.fillText(state.phase === "making" ? "쾅!  쾅!" : "조심히 보내!", 195, 139);
+    ctx.fillText(state.phase === "making" ? "쾅!  쾅!" : "조심히 보내!", 195, base + 139);
   }
 
   function drawWorker(x, y) {
@@ -581,9 +669,7 @@
     }
   }
 
-  function drawHouse() {
-    const x = state.houseX;
-    const y = HOUSE_Y;
+  function drawHouse(x = state.houseX, y = currentHouseY(), built = state.built, active = true) {
 
     ctx.fillStyle = "rgba(24, 92, 125, .38)";
     ctx.fillRect(x - 7, y + IGLOO_H - 1, IGLOO_W + 14, 9);
@@ -625,7 +711,7 @@
       { x: x + 57, y: y + 6 },
       { x: x + 78, y: y + 19 }
     ];
-    for (let i = 0; i < state.built; i++) {
+    for (let i = 0; i < built; i++) {
       const patch = patches[i];
       pxRect(patch.x, patch.y, 28, 25, "#d9f9fa", "#479bb8");
       ctx.fillStyle = "#fff"; ctx.fillRect(patch.x + 6, patch.y + 6, 11, 3);
@@ -640,14 +726,14 @@
     ctx.fillStyle = "#ffd35d"; ctx.fillRect(x + 61, y + 91, 10, 14);
     ctx.fillStyle = "#ff745d"; ctx.fillRect(x + 64, y + 96, 5, 9);
 
-    if (state.built < 3) {
+    if (active && built < 3) {
       ctx.setLineDash([4, 4]); ctx.strokeStyle = "#ffe072"; ctx.lineWidth = 2;
       ctx.strokeRect(goal.x, goal.y, goal.w, goal.h); ctx.setLineDash([]);
       ctx.fillStyle = "#ffdf72"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
       ctx.fillText("천장에 안착!", x + IGLOO_W * .5, y - 10);
     }
 
-    if (state.phase === "celebrating") {
+    if (active && state.phase === "celebrating") {
       const islandMiddle = (leftCoast(y + 80) + rightCoast(y + 80)) * .5;
       const workerX = x + IGLOO_W * .5 < islandMiddle ? x + IGLOO_W + 8 : x - 52;
       drawCelebratingWorker(workerX, y + 49);
@@ -681,7 +767,7 @@
   function draw() {
     const vh = viewHeight();
     ctx.setTransform(canvas.width / VIEW_W, 0, 0, canvas.width / VIEW_W, 0, 0);
-    drawSea(vh); drawIsland();
+    drawSea(vh); drawIsland(vh);
     if (state.flash > 0) { ctx.fillStyle = "rgba(255,117,94,.22)"; ctx.fillRect(0, 0, VIEW_W, vh); }
     if (state.paused && state.phase !== "intro") {
       ctx.fillStyle = "rgba(3,15,35,.67)"; ctx.fillRect(0, 0, VIEW_W, vh);
@@ -729,7 +815,7 @@
   });
   ui.retry.addEventListener("click", resetGame);
   ui.pause.addEventListener("click", () => {
-    if (state.phase === "intro" || state.phase === "won") return;
+    if (state.phase === "intro" || state.phase === "gameover") return;
     state.paused = !state.paused; ui.pause.textContent = state.paused ? "▶" : "Ⅱ";
     showToast(state.paused ? "게임 일시정지" : "다시 출발!", 700);
   });
