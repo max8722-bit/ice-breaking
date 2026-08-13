@@ -11,22 +11,12 @@
   <body>
     <main class="app-shell">
       <section class="game-phone" aria-label="아이스 브레이킹 게임">
-        <header class="hud">
-          <div class="brand">
-            <span class="brand__flake">✦</span>
-            <div>
-              <h1>ICE<br />BREAKING</h1>
-              <p>얼음을 깨고 · 집을 잇다</p>
-            </div>
-          </div>
-          <div class="build-meter" aria-label="이글루 완성도">
-            <div class="build-meter__label"><span>이글루</span><strong id="buildCount">0 / 3</strong></div>
-            <div class="build-meter__track"><i id="buildFill"></i></div>
-          </div>
-        </header>
-
         <div class="canvas-wrap" id="canvasWrap">
           <canvas id="gameCanvas" width="390" height="700" aria-label="게임 화면"></canvas>
+          <div class="build-panel" aria-label="이글루 완성도">
+            <div class="build-meter__label"><span>이글루 완성도</span><strong id="buildCount">0 / 3</strong></div>
+            <div class="build-meter__track"><i id="buildFill"></i></div>
+          </div>
           <div class="toast" id="toast" aria-live="polite">망치질 준비!</div>
 
           <div class="tilt-gauge" aria-hidden="true">

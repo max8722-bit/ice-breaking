@@ -480,14 +480,35 @@
   }
 
   function drawWorker(x, y) {
-    ctx.save(); ctx.translate(x, y);
-    pxRect(7, 0, 27, 25, "#f6ba76", "#0b315a");
-    pxRect(4, -4, 33, 9, "#ffce4f", "#0b315a");
-    pxRect(0, 23, 39, 32, "#ff755e", "#0b315a");
-    pxRect(9, 9, 4, 4, "#09294e"); pxRect(27, 9, 4, 4, "#09294e");
-    ctx.fillStyle = "#fff"; ctx.fillRect(16, 17, 9, 3);
-    ctx.save(); ctx.translate(37, state.phase === "making" ? 27 : 16); ctx.rotate(state.phase === "making" ? -.75 : -.18);
-    pxRect(0, 0, 7, 36, "#9a633b", "#0a2a4f"); pxRect(-8, -6, 25, 12, "#ffd65c", "#0a2a4f"); ctx.restore();
+    const hammering = state.phase === "making";
+    ctx.save(); ctx.translate(x - 4, y - 5);
+
+    // Chunky 8-bit polar explorer: fur hood, parka, mittens and snow boots.
+    pxRect(8, 1, 32, 31, "#288dc1", "#071f40");
+    pxRect(11, 4, 26, 25, "#eafcff", "#071f40");
+    pxRect(14, 7, 20, 20, "#f2ad72", "#0a294b");
+    ctx.fillStyle = "#663c31"; ctx.fillRect(14, 9, 20, 4);
+    ctx.fillStyle = "#071f40"; ctx.fillRect(17, 15, 3, 4); ctx.fillRect(28, 15, 3, 4);
+    ctx.fillStyle = "#fff"; ctx.fillRect(21, 22, 7, 2);
+
+    pxRect(5, 29, 38, 29, "#2384bd", "#071f40");
+    ctx.fillStyle = "#74d7ec"; ctx.fillRect(10, 34, 28, 5);
+    ctx.fillStyle = "#0b5889"; ctx.fillRect(20, 39, 4, 16);
+    ctx.fillStyle = "#ffd65c"; ctx.fillRect(12, 43, 5, 5); ctx.fillRect(31, 43, 5, 5);
+    pxRect(2, 33, 10, 21, "#1b75ad", "#071f40");
+    pxRect(0, 48, 11, 10, "#f2ad72", "#071f40");
+    pxRect(10, 55, 13, 9, "#173b60", "#061a34");
+    pxRect(28, 55, 13, 9, "#173b60", "#061a34");
+
+    ctx.save();
+    ctx.translate(41, hammering ? 31 : 23);
+    ctx.rotate(hammering ? -.78 : -.2);
+    pxRect(-3, 0, 11, 18, "#1b75ad", "#071f40");
+    pxRect(-4, 13, 12, 10, "#f2ad72", "#071f40");
+    pxRect(3, 12, 7, 34, "#9a633b", "#071f40");
+    pxRect(-8, 38, 27, 12, "#dceaf0", "#071f40");
+    ctx.fillStyle = "#fff"; ctx.fillRect(-3, 41, 14, 3);
+    ctx.restore();
     ctx.restore();
   }
 
@@ -497,18 +518,22 @@
     ctx.save(); ctx.translate(x, y - bounce);
 
     ctx.save(); ctx.translate(10, 34); ctx.rotate(-2.35 - wave);
-    pxRect(0, -4, 9, 29, "#ff755e", "#0b315a");
-    pxRect(0, 19, 10, 10, "#f6ba76", "#0b315a"); ctx.restore();
+    pxRect(0, -4, 10, 29, "#2384bd", "#071f40");
+    pxRect(0, 19, 11, 10, "#f2ad72", "#071f40"); ctx.restore();
     ctx.save(); ctx.translate(35, 34); ctx.rotate(-.78 + wave);
-    pxRect(0, -4, 9, 29, "#ff755e", "#0b315a");
-    pxRect(0, 19, 10, 10, "#f6ba76", "#0b315a"); ctx.restore();
+    pxRect(0, -4, 10, 29, "#2384bd", "#071f40");
+    pxRect(0, 19, 11, 10, "#f2ad72", "#071f40"); ctx.restore();
 
-    pxRect(8, 25, 30, 32, "#ff755e", "#0b315a");
-    pxRect(10, 1, 27, 25, "#f6ba76", "#0b315a");
-    pxRect(7, -3, 33, 9, "#ffce4f", "#0b315a");
-    pxRect(14, 10, 4, 4, "#09294e"); pxRect(29, 10, 4, 4, "#09294e");
-    ctx.fillStyle = "#fff"; ctx.fillRect(18, 17, 10, 4);
-    ctx.fillStyle = "#0b315a"; ctx.fillRect(20, 18, 6, 3);
+    pxRect(8, 25, 32, 34, "#2384bd", "#071f40");
+    ctx.fillStyle = "#74d7ec"; ctx.fillRect(13, 31, 22, 5);
+    ctx.fillStyle = "#0b5889"; ctx.fillRect(22, 36, 4, 19);
+    pxRect(8, 0, 32, 29, "#288dc1", "#071f40");
+    pxRect(11, 3, 26, 24, "#eafcff", "#071f40");
+    pxRect(14, 6, 20, 19, "#f2ad72", "#0a294b");
+    ctx.fillStyle = "#663c31"; ctx.fillRect(14, 8, 20, 4);
+    ctx.fillStyle = "#071f40"; ctx.fillRect(17, 14, 3, 4); ctx.fillRect(29, 14, 3, 4);
+    ctx.fillStyle = "#fff"; ctx.fillRect(20, 20, 10, 4);
+    ctx.fillStyle = "#071f40"; ctx.fillRect(22, 21, 6, 3);
     pxRect(10, 54, 10, 8, "#173b60", "#082544"); pxRect(28, 54, 10, 8, "#173b60", "#082544");
 
     ctx.fillStyle = "#fff";
