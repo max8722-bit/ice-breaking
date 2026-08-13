@@ -42,6 +42,7 @@ button { font: inherit; }
   z-index: 6;
   top: max(12px, env(safe-area-inset-top));
   width: min(158px, calc((100% - 36px) / 2));
+  height: 65px;
   padding: 10px 12px 11px;
   border: 3px solid #8eddf0;
   background: rgba(5, 31, 66, .92);
@@ -51,9 +52,11 @@ button { font: inherit; }
 .character-panel { left: 12px; }
 .build-panel { right: 12px; }
 .character-panel__label,
-.build-meter__label { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 7px; color: #c4edf6; font-size: 10px; letter-spacing: .04em; }
-.character-panel__label strong { color: #7ee7ff; font-size: 13px; letter-spacing: .02em; }
-.build-meter__label strong { color: var(--yellow); font-size: 16px; letter-spacing: .04em; }
+.build-meter__label { display: flex; min-height: 10px; align-items: center; justify-content: space-between; margin-bottom: 7px; color: #c4edf6; font-size: 10px; line-height: 1; letter-spacing: .04em; }
+.character-panel__label strong,
+.build-meter__label strong { font-size: inherit; line-height: inherit; letter-spacing: inherit; }
+.character-panel__label strong { color: #7ee7ff; }
+.build-meter__label strong { color: var(--yellow); }
 .character-panel__track,
 .build-meter__track { height: 13px; padding: 3px; border: 2px solid #5596b9; background: #03152f; box-shadow: 2px 2px 0 #020c1d; }
 .character-panel__track i,
@@ -228,8 +231,6 @@ button { font: inherit; }
 @media (max-width: 350px) {
   .character-panel, .build-panel { width: 120px; padding-right: 8px; padding-left: 8px; }
   .character-panel__label, .build-meter__label { font-size: 8px; }
-  .character-panel__label strong { font-size: 11px; }
-  .build-meter__label strong { font-size: 13px; }
 }
 
 @media (max-height: 690px) {
