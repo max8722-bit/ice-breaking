@@ -30,7 +30,8 @@
     integrity: 100, tiltX: 0, tiltY: 0, keyTilt: 0, paused: false,
     baseBeta: null, lastTime: 0, roundDelay: 0, flash: 0, particles: [],
     block: null, drag: false, dragX: 0, combo: 0,
-    coast: { left: [], right: [] }, houseX: 129, houseLane: 1
+    coast: { left: [], right: [] }, houseX: 129, houseLane: 1,
+    celebration: 0
   };
 
   function tileObjectX(column, width) {
@@ -161,7 +162,7 @@
     state.phase = "making";
     state.cameraY = 0; state.targetCameraY = 0; state.built = 0; state.score = 0;
     state.integrity = 100; state.roundDelay = 1.15; state.block = null; state.paused = false;
-    state.particles.length = 0; state.baseBeta = null; state.combo = 0;
+    state.particles.length = 0; state.baseBeta = null; state.combo = 0; state.celebration = 0;
     ui.result.hidden = true; ui.start.style.display = "none"; ui.pause.textContent = "Ⅱ";
     updateHud();
     showToast("망치질 중… 얼음 조각 준비!", 1000);
@@ -252,8 +253,10 @@
     state.block = null;
     updateHud();
     if (state.built >= 3) {
-      state.phase = "won";
-      setTimeout(showResult, 700);
+      state.phase = "celebrating";
+      state.celebration = 0;
+      state.targetCameraY = clamp(HOUSE_Y - viewHeight() * .58, 0, WORLD_H - viewHeight());
+      showToast("이글루 완성! 신난다!", 1500);
     } else {
       state.phase = "making";
       state.roundDelay = 1.65;
@@ -307,6 +310,18 @@
     }
     for (const p of state.particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 180 * dt; p.life -= dt; }
     state.particles = state.particles.filter(p => p.life > 0);
+
+    if (state.phase === "celebrating") {
+      state.celebration += dt;
+      state.targetCameraY = clamp(HOUSE_Y - viewHeight() * .58, 0, WORLD_H - viewHeight());
+      if (Math.random() < dt * 14) {
+        burst(state.houseX + IGLOO_W * Math.random(), HOUSE_Y + 12 + Math.random() * 85, "snow", 1);
+      }
+      if (state.celebration >= 2.6) {
+        state.phase = "won";
+        showResult();
+      }
+    }
 
     if (state.phase === "making") {
       state.roundDelay -= dt;
@@ -455,7 +470,7 @@
     ctx.fillStyle = "#dffcff"; ctx.fillRect(80, 48, 230, 9);
     ctx.fillStyle = "#337fa9"; ctx.fillRect(112, 95, 166, 17);
     ctx.fillStyle = "#1d5b87"; ctx.fillRect(132, 112, 126, 8);
-    drawWorker(178, 56);
+    if (state.phase !== "celebrating" && state.phase !== "won") drawWorker(178, 56);
     ctx.fillStyle = "#e9fbff"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
     ctx.fillText(state.phase === "making" ? "쾅!  쾅!" : "조심히 보내!", 195, 139);
   }
@@ -469,6 +484,34 @@
     ctx.fillStyle = "#fff"; ctx.fillRect(16, 17, 9, 3);
     ctx.save(); ctx.translate(37, state.phase === "making" ? 27 : 16); ctx.rotate(state.phase === "making" ? -.75 : -.18);
     pxRect(0, 0, 7, 36, "#9a633b", "#0a2a4f"); pxRect(-8, -6, 25, 12, "#ffd65c", "#0a2a4f"); ctx.restore();
+    ctx.restore();
+  }
+
+  function drawCelebratingWorker(x, y) {
+    const bounce = Math.abs(Math.sin(state.celebration * 8.5)) * 6;
+    const wave = Math.sin(state.celebration * 13) * .18;
+    ctx.save(); ctx.translate(x, y - bounce);
+
+    ctx.save(); ctx.translate(10, 34); ctx.rotate(-2.35 - wave);
+    pxRect(0, -4, 9, 29, "#ff755e", "#0b315a");
+    pxRect(0, 19, 10, 10, "#f6ba76", "#0b315a"); ctx.restore();
+    ctx.save(); ctx.translate(35, 34); ctx.rotate(-.78 + wave);
+    pxRect(0, -4, 9, 29, "#ff755e", "#0b315a");
+    pxRect(0, 19, 10, 10, "#f6ba76", "#0b315a"); ctx.restore();
+
+    pxRect(8, 25, 30, 32, "#ff755e", "#0b315a");
+    pxRect(10, 1, 27, 25, "#f6ba76", "#0b315a");
+    pxRect(7, -3, 33, 9, "#ffce4f", "#0b315a");
+    pxRect(14, 10, 4, 4, "#09294e"); pxRect(29, 10, 4, 4, "#09294e");
+    ctx.fillStyle = "#fff"; ctx.fillRect(18, 17, 10, 4);
+    ctx.fillStyle = "#0b315a"; ctx.fillRect(20, 18, 6, 3);
+    pxRect(10, 54, 10, 8, "#173b60", "#082544"); pxRect(28, 54, 10, 8, "#173b60", "#082544");
+
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(-5, -5, 5, 5); ctx.fillRect(45, 2, 5, 5);
+    ctx.fillStyle = "#ffd65c";
+    ctx.fillRect(-2, -8, 3, 11); ctx.fillRect(-6, -4, 11, 3);
+    ctx.fillRect(47, -1, 3, 11); ctx.fillRect(43, 3, 11, 3);
     ctx.restore();
   }
 
@@ -573,6 +616,12 @@
       ctx.strokeRect(goal.x, goal.y, goal.w, goal.h); ctx.setLineDash([]);
       ctx.fillStyle = "#ffdf72"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
       ctx.fillText("천장에 안착!", x + IGLOO_W * .5, y - 10);
+    }
+
+    if (state.phase === "celebrating") {
+      const islandMiddle = (leftCoast(y + 80) + rightCoast(y + 80)) * .5;
+      const workerX = x + IGLOO_W * .5 < islandMiddle ? x + IGLOO_W + 8 : x - 52;
+      drawCelebratingWorker(workerX, y + 49);
     }
   }
 
