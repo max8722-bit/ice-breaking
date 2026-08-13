@@ -159,24 +159,48 @@
     showToast.timer = setTimeout(() => ui.toast.classList.remove("is-visible"), ms);
   }
 
+  function availableObstacleColumns(obstacle, row) {
+    const y = state.stageBase + tileObjectY(row, obstacle.h);
+    const sampleY = y + obstacle.h * .5;
+    return [1, 2, 3, 4].filter(column => {
+      const x = tileObjectX(column, obstacle.w);
+      return x >= leftCoast(sampleY) + 7 && x + obstacle.w <= rightCoast(sampleY) - 7;
+    });
+  }
+
   function positionStageObstacles() {
+    const usedRows = [];
     for (const o of obstacles) {
-      o.y = state.stageBase + tileObjectY(o.row, o.h);
+      if (!obstacleActive(o)) continue;
+
+      const shuffledRows = Array.from({ length: 29 }, (_, index) => index + 7)
+        .sort(() => Math.random() - .5);
+      const minimumColumns = o.type === "penguin" ? 2 : 1;
+      let row = shuffledRows.find(candidate =>
+        usedRows.every(used => Math.abs(used - candidate) >= 2)
+        && availableObstacleColumns(o, candidate).length >= minimumColumns
+      );
+      if (row === undefined) {
+        row = shuffledRows.find(candidate => availableObstacleColumns(o, candidate).length >= minimumColumns) ?? 20;
+      }
+
+      const validColumns = availableObstacleColumns(o, row);
+      const column = validColumns[Math.floor(Math.random() * validColumns.length)] ?? 2;
+      usedRows.push(row);
+      o.row = row;
+      o.col = column;
+      o.x = tileObjectX(column, o.w);
+      o.y = state.stageBase + tileObjectY(row, o.h);
+
       if (o.type !== "penguin") continue;
-      if (state.stage === 0 && state.completedIgloos === 0) {
-        o.col = o.startCol;
-        o.dir = o.startDir;
-      }
-      o.fromCol = o.col;
-      o.targetCol = clamp(o.col + o.dir, o.minCol, o.maxCol);
-      if (o.targetCol === o.col) {
-        o.dir *= -1;
-        o.targetCol = clamp(o.col + o.dir, o.minCol, o.maxCol);
-      }
+      o.minCol = Math.min(...validColumns);
+      o.maxCol = Math.max(...validColumns);
+      o.dir = column >= o.maxCol ? -1 : column <= o.minCol ? 1 : (Math.random() < .5 ? -1 : 1);
+      o.fromCol = column;
+      o.targetCol = column + o.dir;
       o.step = 0;
       o.pause = .12;
       o.walkLift = 0;
-      o.x = tileObjectX(o.col, o.w);
     }
   }
 
@@ -852,5 +876,5 @@
   window.addEventListener("resize", resize);
   document.addEventListener("visibilitychange", () => { if (document.hidden && state.phase === "falling") { state.paused = true; ui.pause.textContent = "▶"; } });
 
-  generateCoast(); randomizeHouse(); resize(); updateHud(); requestAnimationFrame(frame);
+  generateCoast(); positionStageObstacles(); randomizeHouse(); resize(); updateHud(); requestAnimationFrame(frame);
 })();
