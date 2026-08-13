@@ -6,6 +6,7 @@ const html = readFileSync(resolve(root, "index.html"), "utf8");
 const css = readFileSync(resolve(root, "styles.css"), "utf8");
 const game = readFileSync(resolve(root, "game.js"), "utf8");
 const tutorialImage = readFileSync(resolve(root, "assets/tutorial-tilt.jpg"));
+const resourceSheet = readFileSync(resolve(root, "assets/ice-breaking-resource-sheet.png"));
 const output = resolve(root, "dist/server");
 
 rmSync(resolve(root, "dist"), { recursive: true, force: true });
@@ -20,7 +21,8 @@ const files = {
 };
 
 const binaryFiles = {
-  "/assets/tutorial-tilt.jpg": { body: ${JSON.stringify(tutorialImage.toString("base64"))}, type: "image/jpeg" }
+  "/assets/tutorial-tilt.jpg": { body: ${JSON.stringify(tutorialImage.toString("base64"))}, type: "image/jpeg" },
+  "/assets/ice-breaking-resource-sheet.png": { body: ${JSON.stringify(resourceSheet.toString("base64"))}, type: "image/png" }
 };
 
 export default {

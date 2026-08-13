@@ -21,6 +21,20 @@
 
   const TUTORIAL_KEY = "ice-breaking-tutorial-seen-v1";
 
+  const spriteSheet = new Image();
+  let spriteSheetReady = false;
+  spriteSheet.decoding = "async";
+  spriteSheet.src = "./assets/ice-breaking-resource-sheet.png?v=20260813";
+  spriteSheet.addEventListener("load", () => { spriteSheetReady = true; });
+  const SPRITES = {
+    worker: { sx: 35, sy: 63, sw: 418, sh: 449 },
+    penguin: { sx: 579, sy: 141, sw: 386, sh: 344 },
+    ice: { sx: 1068, sy: 129, sw: 370, sh: 377 },
+    fire: { sx: 133, sy: 560, sw: 303, sh: 384 },
+    hole: { sx: 522, sy: 613, sw: 434, sh: 328 },
+    igloo: { sx: 1037, sy: 601, sw: 387, sh: 342 }
+  };
+
   const VIEW_W = 390;
   const MAX_STAGES = 10;
   const STAGE_HEIGHT = 1848;
@@ -88,6 +102,25 @@
   }
 
   function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+  function drawSprite(name, x, y, width, height, options = {}) {
+    if (!spriteSheetReady) return false;
+    const sprite = SPRITES[name];
+    const { flip = false, alpha = 1, rotation = 0 } = options;
+    ctx.save();
+    ctx.globalAlpha *= alpha;
+    ctx.imageSmoothingEnabled = true;
+    ctx.translate(x + width * .5, y + height * .5);
+    ctx.rotate(rotation);
+    ctx.scale(flip ? -1 : 1, 1);
+    ctx.drawImage(
+      spriteSheet,
+      sprite.sx, sprite.sy, sprite.sw, sprite.sh,
+      -width * .5, -height * .5, width, height
+    );
+    ctx.restore();
+    return true;
+  }
   function rects(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
   function hash(n) { const x = Math.sin(n * 91.73) * 43758.545; return x - Math.floor(x); }
 
@@ -619,13 +652,17 @@
     ctx.fillStyle = "#dffcff"; ctx.fillRect(80, base + 48, 230, 9);
     ctx.fillStyle = "#337fa9"; ctx.fillRect(112, base + 95, 166, 17);
     ctx.fillStyle = "#1d5b87"; ctx.fillRect(132, base + 112, 126, 8);
-    if (state.phase !== "celebrating" && state.phase !== "gameover" && state.phase !== "victory") drawWorker(178, base + 56);
+    if (state.phase !== "celebrating" && state.phase !== "gameover" && state.phase !== "victory") drawWorker(178, base + 82);
     ctx.fillStyle = "#e9fbff"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
-    ctx.fillText(state.phase === "making" ? "쾅!  쾅!" : "조심히 보내!", 195, base + 139);
+    ctx.fillText(state.phase === "making" ? "쾅!  쾅!" : "조심히 보내!", 195, base + 151);
   }
 
   function drawWorker(x, y) {
     const hammering = state.phase === "making";
+    const hammerBounce = hammering ? Math.abs(Math.sin(performance.now() * .018)) * 3 : 0;
+    if (drawSprite("worker", x - 13, y - 4 - hammerBounce, 61, 65, {
+      rotation: hammering ? Math.sin(performance.now() * .018) * .045 : 0
+    })) return;
     ctx.save(); ctx.translate(x - 4, y - 5);
 
     // Chunky 8-bit polar explorer: fur hood, parka, mittens and snow boots.
@@ -660,6 +697,15 @@
   function drawCelebratingWorker(x, y) {
     const bounce = Math.abs(Math.sin(state.celebration * 8.5)) * 6;
     const wave = Math.sin(state.celebration * 13) * .18;
+    if (spriteSheetReady) {
+      drawSprite("worker", x - 12, y - 10 - bounce, 72, 77, { rotation: wave * .25 });
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(x - 5, y - 8 - bounce, 5, 5); ctx.fillRect(x + 52, y - 1 - bounce, 5, 5);
+      ctx.fillStyle = "#ffd65c";
+      ctx.fillRect(x - 2, y - 11 - bounce, 3, 11); ctx.fillRect(x - 6, y - 7 - bounce, 11, 3);
+      ctx.fillRect(x + 54, y - 4 - bounce, 3, 11); ctx.fillRect(x + 50, y - bounce, 11, 3);
+      return;
+    }
     ctx.save(); ctx.translate(x, y - bounce);
 
     ctx.save(); ctx.translate(10, 34); ctx.rotate(-2.35 - wave);
@@ -691,6 +737,7 @@
 
   function drawObstacle(o) {
     if (o.type === "penguin") {
+      if (drawSprite("penguin", o.x - 2, o.y - (o.walkLift || 0), 42, 47, { flip: o.dir < 0 })) return;
       ctx.save(); ctx.translate(o.x + (o.dir < 0 ? o.w : 0), o.y - (o.walkLift || 0)); ctx.scale(o.dir < 0 ? -1 : 1, 1);
       pxRect(5, 5, 29, 39, "#0b2448", "#06203e");
       pxRect(11, 15, 20, 26, "#eafcff");
@@ -700,13 +747,17 @@
       pxRect(1, 42, 15, 5, "#ffbf43"); pxRect(24, 42, 15, 5, "#ffbf43");
       ctx.restore();
     } else if (o.type === "fire") {
+      const flicker = Math.sin(performance.now() * .012) * 2;
+      ctx.fillStyle = "rgba(255,118,74,.13)"; ctx.beginPath(); ctx.arc(o.x + 27, o.y + 17, 48, 0, Math.PI * 2); ctx.fill();
+      if (drawSprite("fire", o.x + 6, o.y - 10 - flicker, 42, 54 + flicker)) return;
       ctx.fillStyle = "rgba(255,118,74,.13)"; ctx.beginPath(); ctx.arc(o.x + 27, o.y + 17, 48, 0, Math.PI * 2); ctx.fill();
       pxRect(o.x + 1, o.y + 33, 53, 8, "#613d32", "#17314c");
       pxRect(o.x + 10, o.y + 28, 34, 8, "#9b5633");
-      const flicker = Math.sin(performance.now() * .012) * 4;
-      ctx.fillStyle = "#ff765d"; ctx.beginPath(); ctx.moveTo(o.x + 13, o.y + 29); ctx.lineTo(o.x + 27, o.y - 4 + flicker); ctx.lineTo(o.x + 44, o.y + 29); ctx.fill();
-      ctx.fillStyle = "#ffd65c"; ctx.beginPath(); ctx.moveTo(o.x + 21, o.y + 29); ctx.lineTo(o.x + 30, o.y + 8 - flicker * .3); ctx.lineTo(o.x + 37, o.y + 29); ctx.fill();
+      const flickerFallback = Math.sin(performance.now() * .012) * 4;
+      ctx.fillStyle = "#ff765d"; ctx.beginPath(); ctx.moveTo(o.x + 13, o.y + 29); ctx.lineTo(o.x + 27, o.y - 4 + flickerFallback); ctx.lineTo(o.x + 44, o.y + 29); ctx.fill();
+      ctx.fillStyle = "#ffd65c"; ctx.beginPath(); ctx.moveTo(o.x + 21, o.y + 29); ctx.lineTo(o.x + 30, o.y + 8 - flickerFallback * .3); ctx.lineTo(o.x + 37, o.y + 29); ctx.fill();
     } else if (o.type === "hole") {
+      if (drawSprite("hole", o.x, o.y + 5, o.w, o.h - 10)) return;
       ctx.fillStyle = "rgba(31, 103, 137, .28)"; ctx.fillRect(o.x, o.y, o.w, o.h);
       ctx.fillStyle = "#0a3155";
       ctx.beginPath();
@@ -727,6 +778,38 @@
   }
 
   function drawHouse(houseX = state.houseX, houseY = currentHouseY(), built = state.built, active = true) {
+    if (drawSprite("igloo", houseX, houseY + 4, IGLOO_W, IGLOO_H - 4)) {
+      const missingPatches = [
+        { x: houseX + 20, y: houseY + 25 },
+        { x: houseX + 37, y: houseY + 12 },
+        { x: houseX + 55, y: houseY + 24 }
+      ];
+      for (let i = built; i < 3; i++) {
+        const patch = missingPatches[i];
+        ctx.fillStyle = "#0b426d";
+        ctx.beginPath();
+        ctx.moveTo(patch.x, patch.y + 4); ctx.lineTo(patch.x + 5, patch.y);
+        ctx.lineTo(patch.x + 16, patch.y + 2); ctx.lineTo(patch.x + 18, patch.y + 11);
+        ctx.lineTo(patch.x + 10, patch.y + 16); ctx.lineTo(patch.x + 1, patch.y + 12);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = "#67c7e2"; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+
+      if (active && built < 3) {
+        ctx.setLineDash([4, 4]); ctx.strokeStyle = "#ffe072"; ctx.lineWidth = 2;
+        ctx.strokeRect(goal.x, goal.y, goal.w, goal.h); ctx.setLineDash([]);
+        ctx.fillStyle = "#ffdf72"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("이글루 전체에 안착!", houseX + IGLOO_W * .5, houseY - 10);
+      }
+
+      if (active && state.phase === "celebrating") {
+        const workerY = houseY + IGLOO_H * .45;
+        const islandMiddle = (leftCoast(workerY) + rightCoast(workerY)) * .5;
+        const workerX = houseX + IGLOO_W * .5 < islandMiddle ? houseX + IGLOO_W + 8 : houseX - 52;
+        drawCelebratingWorker(workerX, workerY);
+      }
+      return;
+    }
     ctx.save();
     ctx.translate(houseX, houseY);
     ctx.scale(IGLOO_W / IGLOO_DESIGN_W, IGLOO_H / IGLOO_DESIGN_H);
@@ -812,10 +895,16 @@
     ctx.translate(b.x + b.w / 2, b.y + b.h / 2);
     ctx.rotate(b.angle);
     const s = (.82 + state.integrity / 100 * .18) * (1 - submerge * .3); ctx.scale(s, s);
-    pxRect(-17, -17, 34, 34, "#bff5fb", "#287da8");
-    ctx.fillStyle = "#efffff"; ctx.fillRect(-10, -10, 14, 5);
-    ctx.fillStyle = "#73d5e8"; ctx.fillRect(7, 1, 5, 10);
-    ctx.fillStyle = "rgba(255,255,255,.7)"; ctx.fillRect(-10, 8, 6, 4);
+    if (spriteSheetReady) {
+      const sprite = SPRITES.ice;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(spriteSheet, sprite.sx, sprite.sy, sprite.sw, sprite.sh, -19, -19, 38, 38);
+    } else {
+      pxRect(-17, -17, 34, 34, "#bff5fb", "#287da8");
+      ctx.fillStyle = "#efffff"; ctx.fillRect(-10, -10, 14, 5);
+      ctx.fillStyle = "#73d5e8"; ctx.fillRect(7, 1, 5, 10);
+      ctx.fillStyle = "rgba(255,255,255,.7)"; ctx.fillRect(-10, 8, 6, 4);
+    }
     ctx.restore();
 
     if (sink > 0 && b.fallType === "sea") {
