@@ -9,6 +9,7 @@
     startButton: document.getElementById("startButton"), retry: document.getElementById("retryButton"),
     pause: document.getElementById("pauseButton"), toast: document.getElementById("toast"),
     buildCount: document.getElementById("buildCount"), buildFill: document.getElementById("buildFill"),
+    stageLabel: document.getElementById("stageLabel"),
     playerEnergyFill: document.getElementById("playerEnergyFill"), playerEnergyValue: document.getElementById("playerEnergyValue"),
     integrityFill: document.getElementById("integrityFill"), integrityValue: document.getElementById("integrityValue"),
     tiltDot: document.getElementById("tiltDot"), resultTitle: document.getElementById("resultTitle"),
@@ -21,6 +22,7 @@
   const TUTORIAL_KEY = "ice-breaking-tutorial-seen-v1";
 
   const VIEW_W = 390;
+  const MAX_STAGES = 10;
   const STAGE_HEIGHT = 1848;
   const TILE_SIZE = 44;
   const GRID_X = 70;
@@ -53,14 +55,20 @@
   }
 
   const obstacles = [
-    { type: "penguin", col: 1, fromCol: 1, targetCol: 2, row: 11, x: tileObjectX(1, 38), y: tileObjectY(11, 49), w: 38, h: 49, minCol: 1, maxCol: 4, step: 0, stepDuration: .62, pause: .1, dir: 1 },
-    { type: "fire", col: 4, row: 16, x: tileObjectX(4, 54), y: tileObjectY(16, 44), w: 54, h: 44 },
-    { type: "hole", col: 1, row: 20, x: tileObjectX(1, TILE_SIZE), y: tileObjectY(20, TILE_SIZE), w: TILE_SIZE, h: TILE_SIZE },
-    { type: "penguin", col: 4, fromCol: 4, targetCol: 3, row: 24, x: tileObjectX(4, 38), y: tileObjectY(24, 49), w: 38, h: 49, minCol: 1, maxCol: 4, step: 0, stepDuration: .52, pause: .18, dir: -1 },
-    { type: "fire", col: 1, row: 28, x: tileObjectX(1, 54), y: tileObjectY(28, 44), w: 54, h: 44 },
-    { type: "hole", col: 3, row: 32, x: tileObjectX(3, TILE_SIZE), y: tileObjectY(32, TILE_SIZE), w: TILE_SIZE, h: TILE_SIZE },
-    { type: "penguin", col: 2, fromCol: 2, targetCol: 3, row: 34, x: tileObjectX(2, 38), y: tileObjectY(34, 49), w: 38, h: 49, minCol: 1, maxCol: 4, step: 0, stepDuration: .46, pause: .12, dir: 1 }
+    { type: "fire", minStage: 1, col: 4, row: 16, x: tileObjectX(4, 54), y: tileObjectY(16, 44), w: 54, h: 44 },
+    { type: "penguin", minStage: 2, col: 1, startCol: 1, fromCol: 1, targetCol: 2, row: 11, x: tileObjectX(1, 38), y: tileObjectY(11, 49), w: 38, h: 49, minCol: 1, maxCol: 4, step: 0, stepDuration: .66, pause: .1, dir: 1, startDir: 1 },
+    { type: "hole", minStage: 3, col: 1, row: 20, x: tileObjectX(1, TILE_SIZE), y: tileObjectY(20, TILE_SIZE), w: TILE_SIZE, h: TILE_SIZE },
+    { type: "fire", minStage: 4, col: 1, row: 28, x: tileObjectX(1, 54), y: tileObjectY(28, 44), w: 54, h: 44 },
+    { type: "penguin", minStage: 5, col: 4, startCol: 4, fromCol: 4, targetCol: 3, row: 24, x: tileObjectX(4, 38), y: tileObjectY(24, 49), w: 38, h: 49, minCol: 1, maxCol: 4, step: 0, stepDuration: .58, pause: .18, dir: -1, startDir: -1 },
+    { type: "hole", minStage: 6, col: 3, row: 30, x: tileObjectX(3, TILE_SIZE), y: tileObjectY(30, TILE_SIZE), w: TILE_SIZE, h: TILE_SIZE },
+    { type: "fire", minStage: 7, col: 2, row: 8, x: tileObjectX(2, 54), y: tileObjectY(8, 44), w: 54, h: 44 },
+    { type: "penguin", minStage: 8, col: 2, startCol: 2, fromCol: 2, targetCol: 3, row: 33, x: tileObjectX(2, 38), y: tileObjectY(33, 49), w: 38, h: 49, minCol: 1, maxCol: 4, step: 0, stepDuration: .5, pause: .12, dir: 1, startDir: 1 },
+    { type: "hole", minStage: 9, col: 4, row: 14, x: tileObjectX(4, TILE_SIZE), y: tileObjectY(14, TILE_SIZE), w: TILE_SIZE, h: TILE_SIZE },
+    { type: "fire", minStage: 10, col: 4, row: 35, x: tileObjectX(4, 54), y: tileObjectY(35, 44), w: 54, h: 44 },
+    { type: "penguin", minStage: 10, col: 3, startCol: 3, fromCol: 3, targetCol: 2, row: 18, x: tileObjectX(3, 38), y: tileObjectY(18, 49), w: 38, h: 49, minCol: 1, maxCol: 4, step: 0, stepDuration: .48, pause: .1, dir: -1, startDir: -1 }
   ];
+
+  function obstacleActive(obstacle) { return state.stage + 1 >= obstacle.minStage; }
 
   function resize() {
     const rect = wrap.getBoundingClientRect();
@@ -155,6 +163,10 @@
     for (const o of obstacles) {
       o.y = state.stageBase + tileObjectY(o.row, o.h);
       if (o.type !== "penguin") continue;
+      if (state.stage === 0 && state.completedIgloos === 0) {
+        o.col = o.startCol;
+        o.dir = o.startDir;
+      }
       o.fromCol = o.col;
       o.targetCol = clamp(o.col + o.dir, o.minCol, o.maxCol);
       if (o.targetCol === o.col) {
@@ -169,6 +181,7 @@
   }
 
   function updateHud() {
+    ui.stageLabel.textContent = `STAGE ${state.stage + 1} / ${MAX_STAGES}`;
     ui.buildCount.textContent = `${state.built} / 3`;
     ui.buildFill.style.width = `${state.built / 3 * 100}%`;
     ui.playerEnergyValue.textContent = `${Math.ceil(state.energy)}%`;
@@ -256,7 +269,7 @@
     state.cameraY = state.stageBase;
     state.targetCameraY = state.stageBase;
     state.combo = 0;
-    state.energy = clamp(state.energy - 9, 0, 100);
+    state.energy = clamp(state.energy - (7 + state.stage * .7), 0, 100);
     showToast(`${reason} — 새 조각을 만들어요`, 1500);
   }
 
@@ -271,7 +284,7 @@
     b.vy = 58;
     b.spin += (b.vx < 0 ? -1 : 1) * 2.4;
     state.combo = 0;
-    state.energy = clamp(state.energy - 7, 0, 100);
+    state.energy = clamp(state.energy - (5 + state.stage * .55), 0, 100);
     showToast("첨벙! 얼음 조각이 가라앉아요", 1100);
   }
 
@@ -286,7 +299,7 @@
     b.vy = 28;
     b.spin += (b.vx < 0 ? -1 : 1) * 2.8;
     state.combo = 0;
-    state.energy = clamp(state.energy - 7, 0, 100);
+    state.energy = clamp(state.energy - (5 + state.stage * .55), 0, 100);
     showToast("앗! 얼음 조각이 틈새로 빠져요", 1100);
   }
 
@@ -300,7 +313,8 @@
 
   function landBlock() {
     const b = state.block;
-    state.score += Math.round(state.integrity * 12 + 500 + state.combo * 150);
+    const stageMultiplier = 1 + state.stage * .16;
+    state.score += Math.round((state.integrity * 12 + 500 + state.combo * 150) * stageMultiplier);
     state.combo++;
     state.built++;
     burst(b.x + 17, b.y + 17, "snow", 25);
@@ -308,7 +322,7 @@
     updateHud();
     if (state.built >= 3) {
       state.completedIgloos++;
-      state.energy = clamp(state.energy + 12, 0, 100);
+      state.energy = clamp(state.energy + Math.max(9, 14 - state.stage * .55), 0, 100);
       state.phase = "celebrating";
       state.celebration = 0;
       state.targetCameraY = clamp(currentHouseY() - viewHeight() * .58, 0, cameraLimit());
@@ -352,10 +366,22 @@
     ui.result.hidden = false;
   }
 
+  function showVictory() {
+    state.phase = "victory";
+    state.block = null;
+    ui.resultEyebrow.textContent = "ALL STAGES COMPLETE";
+    ui.resultTitle.textContent = "10 STAGE CLEAR!";
+    ui.resultCopy.textContent = `깨진 이글루 ${MAX_STAGES}채를 모두 수리했어요!`;
+    ui.resultIcon.textContent = "⌂";
+    ui.finalScore.textContent = String(state.score).padStart(4, "0");
+    ui.result.hidden = false;
+  }
+
   function update(dt) {
     if (state.paused || state.phase === "intro") return;
-    if (state.phase === "gameover") return;
-    state.energy = clamp(state.energy - dt * .78, 0, 100);
+    if (state.phase === "gameover" || state.phase === "victory") return;
+    const stageDrain = .55 + state.stage * .055;
+    state.energy = clamp(state.energy - dt * stageDrain, 0, 100);
     if (state.energy <= 0) {
       updateHud();
       showGameOver();
@@ -363,6 +389,7 @@
     }
     if (state.flash > 0) state.flash -= dt;
     for (const o of obstacles) {
+      if (!obstacleActive(o)) continue;
       if (o.type === "penguin") {
         o.y = state.stageBase + tileObjectY(o.row, o.h);
         if (o.pause > 0) {
@@ -371,7 +398,8 @@
           continue;
         }
 
-        o.step = clamp(o.step + dt / o.stepDuration, 0, 1);
+        const speedScale = Math.max(.62, 1 - state.stage * .045);
+        o.step = clamp(o.step + dt / (o.stepDuration * speedScale), 0, 1);
         const easedStep = o.step * o.step * (3 - 2 * o.step);
         const movingColumn = o.fromCol + (o.targetCol - o.fromCol) * easedStep;
         o.x = tileObjectX(movingColumn, o.w);
@@ -402,7 +430,10 @@
       if (Math.random() < dt * 14) {
         burst(state.houseX + IGLOO_W * Math.random(), currentHouseY() + 12 + Math.random() * 85, "snow", 1);
       }
-      if (state.celebration >= 2.35) advanceStage();
+      if (state.celebration >= 2.35) {
+        if (state.stage + 1 >= MAX_STAGES) showVictory();
+        else advanceStage();
+      }
     }
 
     if (state.phase === "making") {
@@ -444,8 +475,10 @@
       }
 
       for (const o of obstacles) {
-        if (b.hit > 0 || !rects(b, o)) continue;
-        if (o.type === "penguin") hitBlock(18, o.dir * 145, "펭귄이 툭! 밀었어요");
+        if (!obstacleActive(o) || b.hit > 0 || !rects(b, o)) continue;
+        if (o.type === "penguin") {
+          hitBlock(14 + state.stage * 1.5, o.dir * (112 + state.stage * 8), "펭귄이 툭! 밀었어요");
+        }
         if (o.type === "hole") {
           const centerX = b.x + b.w * .5;
           const centerY = b.y + b.h * .5;
@@ -457,10 +490,10 @@
         }
       }
       for (const o of obstacles) {
-        if (o.type !== "fire") continue;
+        if (!obstacleActive(o) || o.type !== "fire") continue;
         const hot = { x: o.x - 18, y: o.y - 18, w: o.w + 36, h: o.h + 36 };
         if (rects(b, hot)) {
-          state.integrity = clamp(state.integrity - dt * 27, 0, 100);
+          state.integrity = clamp(state.integrity - dt * (21.5 + state.stage * 1.5), 0, 100);
           if (Math.random() < dt * 8) burst(b.x + 17, b.y + 17, "fire", 1);
         }
       }
@@ -523,7 +556,7 @@
     }
     drawBayMarkers(viewTop, viewBottom);
     drawTopWorkshop();
-    for (const o of obstacles) drawObstacle(o);
+    for (const o of obstacles) if (obstacleActive(o)) drawObstacle(o);
     for (const house of state.pastHouses) {
       if (house.y + IGLOO_H < viewTop || house.y > viewBottom) continue;
       drawHouse(house.x, house.y, 3, false);
@@ -559,7 +592,7 @@
     ctx.fillStyle = "#dffcff"; ctx.fillRect(80, base + 48, 230, 9);
     ctx.fillStyle = "#337fa9"; ctx.fillRect(112, base + 95, 166, 17);
     ctx.fillStyle = "#1d5b87"; ctx.fillRect(132, base + 112, 126, 8);
-    if (state.phase !== "celebrating" && state.phase !== "gameover") drawWorker(178, base + 56);
+    if (state.phase !== "celebrating" && state.phase !== "gameover" && state.phase !== "victory") drawWorker(178, base + 56);
     ctx.fillStyle = "#e9fbff"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
     ctx.fillText(state.phase === "making" ? "쾅!  쾅!" : "조심히 보내!", 195, base + 139);
   }
@@ -812,7 +845,7 @@
   });
   ui.retry.addEventListener("click", resetGame);
   ui.pause.addEventListener("click", () => {
-    if (state.phase === "intro" || state.phase === "gameover") return;
+    if (state.phase === "intro" || state.phase === "gameover" || state.phase === "victory") return;
     state.paused = !state.paused; ui.pause.textContent = state.paused ? "▶" : "Ⅱ";
     showToast(state.paused ? "게임 일시정지" : "다시 출발!", 700);
   });
