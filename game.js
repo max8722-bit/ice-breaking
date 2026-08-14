@@ -448,7 +448,7 @@
     const curve = (Math.random() - .5) * 2.4;
     block.trailX = x;
     block.trailY = y;
-    const life = 1.35 + Math.random() * .3;
+    const life = .85 + Math.random() * .2;
     state.wetMarks.push({
       x: (startX + x) * .5,
       y: (startY + y) * .5,
@@ -925,14 +925,14 @@
       if (mark.y < viewTop - 12 || mark.y > viewBottom + 12) continue;
       const fade = clamp(mark.life / mark.maxLife, 0, 1);
       const spread = 1 + (1 - fade) * .18;
-      ctx.globalAlpha = fade * .3;
+      ctx.globalAlpha = fade * .2;
       ctx.strokeStyle = "#278fb5";
       ctx.lineWidth = mark.width * spread;
       ctx.beginPath();
       ctx.moveTo(mark.x1, mark.y1);
       ctx.quadraticCurveTo(mark.cx, mark.cy, mark.x2, mark.y2);
       ctx.stroke();
-      ctx.globalAlpha = fade * .32;
+      ctx.globalAlpha = fade * .2;
       ctx.strokeStyle = "#d9fbff";
       ctx.lineWidth = Math.max(1, mark.width * .23);
       ctx.beginPath();
@@ -940,7 +940,7 @@
       ctx.quadraticCurveTo(mark.cx, mark.cy - .7, mark.x2, mark.y2 - .7);
       ctx.stroke();
       if (mark.shine) {
-        ctx.globalAlpha = fade * .55;
+        ctx.globalAlpha = fade * .2;
         ctx.strokeStyle = "#f2ffff";
         ctx.lineWidth = 1;
         ctx.beginPath();
