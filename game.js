@@ -795,6 +795,7 @@
     const auroraTime = performance.now() * .00018;
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = .3;
     for (let y = firstTileY; y < viewBottom; y += TILE_SIZE) {
       for (let x = GRID_X; x < 330; x += TILE_SIZE) {
         const column = Math.floor((x - GRID_X) / TILE_SIZE);
@@ -806,12 +807,12 @@
           const centerX = x + TILE_SIZE * .5;
           const centerY = y + TILE_SIZE * .5;
           const aurora = ctx.createLinearGradient(centerX - dx, centerY - dy, centerX + dx, centerY + dy);
-          aurora.addColorStop(0, "rgba(111, 255, 210, .36)"); // #6FFFD2
-          aurora.addColorStop(.5, "rgba(76, 167, 255, .30)"); // #4CA7FF
-          aurora.addColorStop(1, "rgba(255, 117, 216, .34)"); // #FF75D8
+          aurora.addColorStop(0, "#6FFFD2");
+          aurora.addColorStop(.5, "#4CA7FF");
+          aurora.addColorStop(1, "#FF75D8");
           ctx.fillStyle = aurora;
           ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-          ctx.fillStyle = "rgba(239, 255, 255, .10)";
+          ctx.fillStyle = "rgba(239, 255, 255, .34)";
           ctx.fillRect(x, y, TILE_SIZE, 2);
         }
       }
