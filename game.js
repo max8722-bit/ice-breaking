@@ -792,18 +792,31 @@
     }
 
     const firstTileY = Math.floor(viewTop / TILE_SIZE) * TILE_SIZE;
+    const auroraTime = performance.now() * .00018;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
     for (let y = firstTileY; y < viewBottom; y += TILE_SIZE) {
       for (let x = GRID_X; x < 330; x += TILE_SIZE) {
         const column = Math.floor((x - GRID_X) / TILE_SIZE);
         const row = Math.floor(y / TILE_SIZE);
         if ((column + row) % 2 === 0) {
-          ctx.fillStyle = "rgba(31, 139, 169, .14)";
+          const phase = auroraTime + hash(column * 37 + row * 101) * Math.PI * 2;
+          const dx = Math.cos(phase) * TILE_SIZE * .72;
+          const dy = Math.sin(phase) * TILE_SIZE * .72;
+          const centerX = x + TILE_SIZE * .5;
+          const centerY = y + TILE_SIZE * .5;
+          const aurora = ctx.createLinearGradient(centerX - dx, centerY - dy, centerX + dx, centerY + dy);
+          aurora.addColorStop(0, "rgba(111, 255, 210, .36)"); // #6FFFD2
+          aurora.addColorStop(.5, "rgba(76, 167, 255, .30)"); // #4CA7FF
+          aurora.addColorStop(1, "rgba(255, 117, 216, .34)"); // #FF75D8
+          ctx.fillStyle = aurora;
           ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-          ctx.fillStyle = "rgba(239, 255, 255, .12)";
+          ctx.fillStyle = "rgba(239, 255, 255, .10)";
           ctx.fillRect(x, y, TILE_SIZE, 2);
         }
       }
     }
+    ctx.restore();
 
     // Fine cracks and bright inclusions add the same illustrated polish as the sprites.
     ctx.lineCap = "round";
