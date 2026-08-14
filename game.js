@@ -57,7 +57,7 @@
   const meltingIceStage2Image = new Image();
   let meltingIceStage2ImageReady = false;
   meltingIceStage2Image.decoding = "async";
-  meltingIceStage2Image.src = "./assets/ice-block-melting-stage-2.png?v=20260814-slope-right";
+  meltingIceStage2Image.src = "./assets/ice-block-melting-stage-2.png?v=20260814-second-fire-contact";
   meltingIceStage2Image.addEventListener("load", () => { meltingIceStage2ImageReady = true; });
 
   const iceBlockShadowImage = new Image();
@@ -363,7 +363,7 @@
   }
 
   function spawnBlock() {
-    state.block = { x: 178, y: state.stageBase + 168, w: 34, h: 34, vx: 0, vy: 44, hit: 0, meltStage: 0, trailX: null, trailY: null, wetTrail: null };
+    state.block = { x: 178, y: state.stageBase + 168, w: 34, h: 34, vx: 0, vy: 44, hit: 0, meltStage: 0, fireContacts: 0, touchingFire: false, trailX: null, trailY: null, wetTrail: null };
     state.integrity = 100;
     state.phase = "falling";
     burst(195, state.stageBase + 164, "ice", 12);
@@ -415,8 +415,6 @@
     const b = state.block;
     if (!b || b.hit > 0) return;
     state.integrity = clamp(state.integrity - amount, 0, 100);
-    if (state.integrity <= 45) b.meltStage = 2;
-    else if (state.integrity <= 72) b.meltStage = Math.max(b.meltStage, 1);
     b.vx += pushX; b.vy *= .64; b.hit = .45;
     state.flash = .12;
     burst(b.x + b.w / 2, b.y + b.h / 2, "ice", 7);
@@ -650,16 +648,21 @@
           }
         }
       }
+      let touchingFire = false;
       for (const o of obstacles) {
         if (!obstacleActive(o) || o.type !== "fire") continue;
         const hot = { x: o.x - 18, y: o.y - 18, w: o.w + 36, h: o.h + 36 };
         if (rects(b, hot)) {
-          b.meltStage = Math.max(b.meltStage, 1);
+          touchingFire = true;
           state.integrity = clamp(state.integrity - dt * (21.5 + state.stage * 1.5), 0, 100);
-          if (state.integrity <= 45) b.meltStage = 2;
           if (Math.random() < dt * 8) burst(b.x + 17, b.y + 17, "fire", 1);
         }
       }
+      if (touchingFire && !b.touchingFire) {
+        b.fireContacts += 1;
+        b.meltStage = Math.min(2, b.fireContacts);
+      }
+      b.touchingFire = touchingFire;
       if (state.integrity <= 0) loseBlock("얼음이 녹아버렸어요");
       if (b && rects(b, goal)) landBlock();
       if (state.block && state.block.y > currentWorldBottom() + 30) loseBlock("바다로 빠졌어요");
@@ -1252,14 +1255,12 @@
       ctx.drawImage(iceBlockShadowImage, -22, -20, 44, 23);
       ctx.restore();
     }
-    const visualStage = Math.max(
-      b.meltStage || 0,
-      state.integrity <= 45 ? 2 : state.integrity <= 72 ? 1 : 0
-    );
+    const visualStage = b.meltStage || 0;
     if (visualStage >= 2 && meltingIceStage2ImageReady) {
       const meltedWidth = 42;
       const meltedHeight = 27;
       ctx.imageSmoothingEnabled = true;
+      // Keep every melt sprite anchored to the block's center-bottom point.
       ctx.drawImage(meltingIceStage2Image, -meltedWidth * .5, -meltedHeight, meltedWidth, meltedHeight);
     } else if (visualStage >= 1 && meltingIceImageReady) {
       const meltedWidth = 38;
