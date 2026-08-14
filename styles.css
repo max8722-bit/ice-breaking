@@ -26,7 +26,7 @@ button { font: inherit; }
 .game-phone {
   position: relative;
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: 1fr;
   width: min(100vw, 430px);
   height: 100svh;
   min-height: 600px;
@@ -203,23 +203,22 @@ button { font: inherit; }
   .tutorial-popup > p:not(.tutorial-popup__eyebrow) { margin: 8px 0 10px; line-height: 1.45; }
 }
 
-.statusbar {
-  z-index: 4;
-  display: flex;
-  min-height: 61px;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px max(10px, env(safe-area-inset-bottom));
-  border-top: 3px solid rgba(151, 231, 255, .18);
-  background: #071e40;
-  box-shadow: 0 -4px 0 rgba(2, 17, 39, .4);
+#pauseButton {
+  position: absolute;
+  z-index: 7;
+  right: 12px;
+  bottom: max(42px, calc(env(safe-area-inset-bottom) + 38px));
+  width: 36px;
+  height: 36px;
+  border: 2px solid rgba(199, 244, 255, .82);
+  border-radius: 8px;
+  background: rgba(6, 39, 77, .78);
+  color: #e5fbff;
+  cursor: pointer;
+  box-shadow: 0 4px 0 rgba(2, 18, 42, .58), inset 0 0 0 2px rgba(119, 218, 239, .16);
+  backdrop-filter: blur(4px);
 }
-.integrity { display: grid; flex: 1; grid-template-columns: auto 1fr 35px; align-items: center; gap: 9px; }
-.integrity > span { color: #8cc9df; font-size: 9px; }
-.integrity > div { height: 10px; padding: 2px; border: 1px solid #3b7aa4; background: #06152d; }
-.integrity i { display: block; width: 100%; height: 100%; background: #81e7ff; transition: width .2s, background .2s; }
-.integrity strong { color: #d7f9ff; font-size: 10px; text-align: right; }
-#pauseButton { width: 34px; height: 34px; border: 2px solid #4e8daf; border-radius: 0; background: #0b345c; color: #b9eaf6; cursor: pointer; box-shadow: 2px 2px 0 #031127; }
+#pauseButton:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(2, 18, 42, .58); }
 
 @keyframes hammer { 0%, 52%, 100% { transform: rotate(-30deg); } 62%, 78% { transform: translate(22px, 13px) rotate(23deg); } }
 
@@ -240,5 +239,4 @@ button { font: inherit; }
   .start-card h2 { font-size: 25px; }
   .start-card__copy { margin: 8px 0 10px; }
   .how-to { margin-bottom: 11px; padding: 8px 13px; }
-  .statusbar { min-height: 52px; }
 }
