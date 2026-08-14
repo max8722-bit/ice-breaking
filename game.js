@@ -74,6 +74,12 @@
   meltingIceStage2Image.src = "./assets/ice-block-melting-stage-2.png?v=20260814-slope-right";
   meltingIceStage2Image.addEventListener("load", () => { meltingIceStage2ImageReady = true; });
 
+  const iceBlockShadowImage = new Image();
+  let iceBlockShadowImageReady = false;
+  iceBlockShadowImage.decoding = "async";
+  iceBlockShadowImage.src = "./assets/ice-block-shadow.png?v=20260814";
+  iceBlockShadowImage.addEventListener("load", () => { iceBlockShadowImageReady = true; });
+
   const fireWoodImage = new Image();
   let fireWoodImageReady = false;
   fireWoodImage.decoding = "async";
@@ -942,7 +948,18 @@
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     for (const trail of state.wetMarks) {
-      const points = trail.points;
+      let points = trail.points;
+      if (state.phase === "falling" && state.block?.wetTrail === trail) {
+        const blockCenterX = state.block.x + state.block.w * .5;
+        const blockTrailY = state.block.y + state.block.h * .78;
+        const clearRadius = Math.max(24, state.block.w * .72);
+        let visibleEnd = points.length;
+        while (
+          visibleEnd > 1
+          && Math.hypot(points[visibleEnd - 1].x - blockCenterX, points[visibleEnd - 1].y - blockTrailY) < clearRadius
+        ) visibleEnd--;
+        points = points.slice(0, visibleEnd);
+      }
       if (points.length < 2 || !points.some(point => point.y > viewTop - 30 && point.y < viewBottom + 30)) continue;
       const first = points[0];
       const last = points[points.length - 1];
@@ -1282,6 +1299,13 @@
     // Both ice sprites share the block's center-bottom as their anchor.
     ctx.translate(b.x + b.w / 2, b.y + b.h);
     const s = (.82 + state.integrity / 100 * .18) * (1 - submerge * .3); ctx.scale(s, s);
+    if (iceBlockShadowImageReady && state.phase === "falling") {
+      ctx.save();
+      ctx.globalAlpha *= .82;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(iceBlockShadowImage, -25, -8, 50, 25);
+      ctx.restore();
+    }
     const visualStage = Math.max(
       b.meltStage || 0,
       state.integrity <= 45 ? 2 : state.integrity <= 72 ? 1 : 0
