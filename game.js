@@ -1257,7 +1257,7 @@
     }
     const visualStage = b.meltStage || 0;
     if (visualStage >= 2 && meltingIceStage2ImageReady) {
-      const meltedWidth = 42;
+      const meltedWidth = 38;
       const meltedHeight = 27;
       ctx.imageSmoothingEnabled = true;
       // Keep every melt sprite anchored to the block's center-bottom point.
