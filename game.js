@@ -411,7 +411,7 @@
   }
 
   function spawnBlock() {
-    state.block = { x: 178, y: state.stageBase + 168, w: 34, h: 34, vx: 0, vy: 44, hit: 0, meltStage: 0, trailX: null, trailY: null };
+    state.block = { x: 178, y: state.stageBase + 168, w: 34, h: 34, vx: 0, vy: 44, hit: 0, meltStage: 0, trailX: null, trailY: null, wetTrail: null };
     state.integrity = 100;
     state.phase = "falling";
     burst(195, state.stageBase + 164, "ice", 12);
@@ -434,36 +434,29 @@
     if (block.trailX === null) {
       block.trailX = x;
       block.trailY = y;
+      const life = .85 + Math.random() * .2;
+      block.wetTrail = {
+        width: block.w,
+        shine: Math.random() > .45,
+        points: [{ x, y, life, maxLife: life }]
+      };
+      state.wetMarks.push(block.wetTrail);
       return;
     }
     const dx = x - block.trailX;
     const dy = y - block.trailY;
     const distance = Math.hypot(dx, dy);
-    if (distance < 7) return;
-    const ux = dx / distance;
-    const uy = dy / distance;
-    const segmentLength = Math.min(distance, 13);
-    const startX = x - ux * segmentLength;
-    const startY = y - uy * segmentLength;
-    const curve = (Math.random() - .5) * 2.4;
+    if (distance < 6) return;
     block.trailX = x;
     block.trailY = y;
     const life = .85 + Math.random() * .2;
-    state.wetMarks.push({
-      x: (startX + x) * .5,
-      y: (startY + y) * .5,
-      x1: startX,
-      y1: startY,
-      x2: x,
-      y2: y,
-      cx: (startX + x) * .5 - uy * curve,
-      cy: (startY + y) * .5 + ux * curve,
-      width: block.w,
-      life,
-      maxLife: life,
-      shine: Math.random() > .45
-    });
-    if (state.wetMarks.length > 150) state.wetMarks.splice(0, state.wetMarks.length - 150);
+    if (!block.wetTrail || !state.wetMarks.includes(block.wetTrail)) {
+      block.wetTrail = { width: block.w, shine: Math.random() > .45, points: [] };
+      state.wetMarks.push(block.wetTrail);
+    }
+    block.wetTrail.points.push({ x, y, life, maxLife: life });
+    if (block.wetTrail.points.length > 72) block.wetTrail.points.shift();
+    if (state.wetMarks.length > 16) state.wetMarks.splice(0, state.wetMarks.length - 16);
   }
 
   function hitBlock(amount, pushX, label) {
@@ -635,8 +628,11 @@
     }
     for (const p of state.particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 180 * dt; p.life -= dt; }
     state.particles = state.particles.filter(p => p.life > 0);
-    for (const mark of state.wetMarks) mark.life -= dt;
-    state.wetMarks = state.wetMarks.filter(mark => mark.life > 0);
+    for (const trail of state.wetMarks) {
+      for (const point of trail.points) point.life -= dt;
+      trail.points = trail.points.filter(point => point.life > 0);
+    }
+    state.wetMarks = state.wetMarks.filter(trail => trail.points.length > 0);
 
     if (state.phase === "celebrating") {
       state.celebration += dt;
@@ -918,35 +914,67 @@
   }
 
   function drawWetMarks(viewTop, viewBottom) {
+    const strokeSmoothPath = (points, yOffset = 0) => {
+      if (points.length < 2) return false;
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y + yOffset);
+      if (points.length === 2) {
+        ctx.lineTo(points[1].x, points[1].y + yOffset);
+      } else {
+        for (let i = 1; i < points.length - 1; i++) {
+          const current = points[i];
+          const next = points[i + 1];
+          ctx.quadraticCurveTo(
+            current.x,
+            current.y + yOffset,
+            (current.x + next.x) * .5,
+            (current.y + next.y) * .5 + yOffset
+          );
+        }
+        const last = points[points.length - 1];
+        ctx.lineTo(last.x, last.y + yOffset);
+      }
+      ctx.stroke();
+      return true;
+    };
+
     ctx.save();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    for (const mark of state.wetMarks) {
-      if (mark.y < viewTop - 12 || mark.y > viewBottom + 12) continue;
-      const fade = clamp(mark.life / mark.maxLife, 0, 1);
-      const spread = 1 + (1 - fade) * .18;
-      ctx.globalAlpha = fade * .2;
-      ctx.strokeStyle = "#278fb5";
-      ctx.lineWidth = mark.width * spread;
-      ctx.beginPath();
-      ctx.moveTo(mark.x1, mark.y1);
-      ctx.quadraticCurveTo(mark.cx, mark.cy, mark.x2, mark.y2);
-      ctx.stroke();
-      ctx.globalAlpha = fade * .2;
-      ctx.strokeStyle = "#d9fbff";
-      ctx.lineWidth = Math.max(1, mark.width * .42);
-      ctx.beginPath();
-      ctx.moveTo(mark.x1, mark.y1 - .7);
-      ctx.quadraticCurveTo(mark.cx, mark.cy - .7, mark.x2, mark.y2 - .7);
-      ctx.stroke();
-      if (mark.shine) {
-        ctx.globalAlpha = fade * .2;
-        ctx.strokeStyle = "#f2ffff";
+    for (const trail of state.wetMarks) {
+      const points = trail.points;
+      if (points.length < 2 || !points.some(point => point.y > viewTop - 30 && point.y < viewBottom + 30)) continue;
+      const first = points[0];
+      const last = points[points.length - 1];
+      const firstFade = clamp(first.life / first.maxLife, 0, 1);
+      const lastFade = clamp(last.life / last.maxLife, 0, 1);
+      const averageFade = (firstFade + lastFade) * .5;
+
+      const wetGradient = ctx.createLinearGradient(first.x, first.y, last.x, last.y);
+      wetGradient.addColorStop(0, `rgba(39,143,181,${firstFade * .2})`);
+      wetGradient.addColorStop(.45, `rgba(39,143,181,${averageFade * .2})`);
+      wetGradient.addColorStop(1, `rgba(39,143,181,${lastFade * .2})`);
+      ctx.strokeStyle = wetGradient;
+      ctx.lineWidth = trail.width * (1 + (1 - averageFade) * .12);
+      strokeSmoothPath(points);
+
+      const highlightGradient = ctx.createLinearGradient(first.x, first.y, last.x, last.y);
+      highlightGradient.addColorStop(0, `rgba(217,251,255,${firstFade * .2})`);
+      highlightGradient.addColorStop(.45, `rgba(217,251,255,${averageFade * .2})`);
+      highlightGradient.addColorStop(1, `rgba(217,251,255,${lastFade * .2})`);
+      ctx.strokeStyle = highlightGradient;
+      ctx.lineWidth = Math.max(1, trail.width * .42);
+      strokeSmoothPath(points, -.7);
+
+      if (trail.shine && points.length >= 4) {
+        const shinePoints = points.slice(Math.floor(points.length * .55));
+        const shineFirst = shinePoints[0];
+        const shineGradient = ctx.createLinearGradient(shineFirst.x, shineFirst.y, last.x, last.y);
+        shineGradient.addColorStop(0, "rgba(242,255,255,0)");
+        shineGradient.addColorStop(1, `rgba(242,255,255,${lastFade * .2})`);
+        ctx.strokeStyle = shineGradient;
         ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(mark.cx, mark.cy - 1.2);
-        ctx.lineTo(mark.x2, mark.y2 - 1.2);
-        ctx.stroke();
+        strokeSmoothPath(shinePoints, -1.2);
       }
     }
     ctx.restore();
