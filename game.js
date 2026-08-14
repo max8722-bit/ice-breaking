@@ -1249,7 +1249,7 @@
       ctx.save();
       ctx.globalAlpha *= .82;
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(iceBlockShadowImage, -25, -13, 50, 25);
+      ctx.drawImage(iceBlockShadowImage, -25, -24, 50, 25);
       ctx.restore();
     }
     const visualStage = Math.max(
