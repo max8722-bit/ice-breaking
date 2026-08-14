@@ -86,10 +86,10 @@ button { font: inherit; }
 .tilt-gauge > div::after { position: absolute; top: -3px; bottom: -3px; left: 50%; width: 2px; content: ""; background: #d7f8ff; }
 .tilt-gauge i { position: absolute; z-index: 2; top: 50%; left: 50%; width: 13px; height: 13px; border: 2px solid #fff; background: var(--yellow); transform: translate(-50%, -50%); transition: left .08s linear; box-shadow: 1px 2px 0 #9a651d; }
 
-.toast {
+.game-phone .toast {
   position: absolute;
   z-index: 7;
-  top: max(148px, calc(env(safe-area-inset-top) + 136px));
+  top: calc(50% + 10px);
   left: 50%;
   min-width: 130px;
   padding: 8px 14px;
@@ -99,11 +99,11 @@ button { font: inherit; }
   color: #fff;
   font-size: 11px;
   text-align: center;
-  transform: translate(-50%, -12px);
+  transform: translate(-50%, calc(-50% - 12px));
   transition: .22s ease;
   box-shadow: 3px 3px 0 rgba(2, 18, 39, .55);
 }
-.toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+.game-phone .toast.is-visible { opacity: 1; transform: translate(-50%, -50%); }
 
 .start-card, .result-card {
   position: absolute;
@@ -235,7 +235,6 @@ button { font: inherit; }
 
 @media (max-height: 690px) {
   .character-panel, .build-panel { top: max(8px, env(safe-area-inset-top)); padding-top: 8px; padding-bottom: 9px; }
-  .toast { top: max(140px, calc(env(safe-area-inset-top) + 132px)); }
   .start-card { justify-content: flex-start; padding-top: 20px; }
   .start-card__hero { height: 56px; transform: scale(.78); margin-top: -4px; }
   .start-card h2 { font-size: 25px; }

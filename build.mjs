@@ -7,6 +7,14 @@ const css = readFileSync(resolve(root, "styles.css"), "utf8");
 const game = readFileSync(resolve(root, "game.js"), "utf8");
 const tutorialImage = readFileSync(resolve(root, "assets/tutorial-tilt.jpg"));
 const resourceSheet = readFileSync(resolve(root, "assets/ice-breaking-resource-sheet.png"));
+const penguinBody = readFileSync(resolve(root, "assets/penguin-body.png"));
+const penguinArmNear = readFileSync(resolve(root, "assets/penguin-arm-near.png"));
+const penguinFootNear = readFileSync(resolve(root, "assets/penguin-foot-near.png"));
+const penguinFootFar = readFileSync(resolve(root, "assets/penguin-foot-far.png"));
+const workerHammerMotionSheet = readFileSync(resolve(root, "assets/worker-hammer-motion-sprite-sheet.png"));
+const meltingIceBlock = readFileSync(resolve(root, "assets/ice-block-melting.png"));
+const fireWood = readFileSync(resolve(root, "assets/fire-wood.png"));
+const fireFlameSpriteSheet = readFileSync(resolve(root, "assets/fire-flame-sprite-sheet.png"));
 const output = resolve(root, "dist/server");
 
 rmSync(resolve(root, "dist"), { recursive: true, force: true });
@@ -22,7 +30,15 @@ const files = {
 
 const binaryFiles = {
   "/assets/tutorial-tilt.jpg": { body: ${JSON.stringify(tutorialImage.toString("base64"))}, type: "image/jpeg" },
-  "/assets/ice-breaking-resource-sheet.png": { body: ${JSON.stringify(resourceSheet.toString("base64"))}, type: "image/png" }
+  "/assets/ice-breaking-resource-sheet.png": { body: ${JSON.stringify(resourceSheet.toString("base64"))}, type: "image/png" },
+  "/assets/penguin-body.png": { body: ${JSON.stringify(penguinBody.toString("base64"))}, type: "image/png" },
+  "/assets/penguin-arm-near.png": { body: ${JSON.stringify(penguinArmNear.toString("base64"))}, type: "image/png" },
+  "/assets/penguin-foot-near.png": { body: ${JSON.stringify(penguinFootNear.toString("base64"))}, type: "image/png" },
+  "/assets/penguin-foot-far.png": { body: ${JSON.stringify(penguinFootFar.toString("base64"))}, type: "image/png" },
+  "/assets/worker-hammer-motion-sprite-sheet.png": { body: ${JSON.stringify(workerHammerMotionSheet.toString("base64"))}, type: "image/png" },
+  "/assets/ice-block-melting.png": { body: ${JSON.stringify(meltingIceBlock.toString("base64"))}, type: "image/png" },
+  "/assets/fire-wood.png": { body: ${JSON.stringify(fireWood.toString("base64"))}, type: "image/png" },
+  "/assets/fire-flame-sprite-sheet.png": { body: ${JSON.stringify(fireFlameSpriteSheet.toString("base64"))}, type: "image/png" }
 };
 
 export default {

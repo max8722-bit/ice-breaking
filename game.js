@@ -35,6 +35,55 @@
     igloo: { sx: 1037, sy: 601, sw: 387, sh: 342 }
   };
 
+  const penguinParts = {};
+  let penguinPartsReady = false;
+  const penguinPartSources = {
+    body: "./assets/penguin-body.png?v=20260813",
+    armNear: "./assets/penguin-arm-near.png?v=20260813",
+    footNear: "./assets/penguin-foot-near.png?v=20260813",
+    footFar: "./assets/penguin-foot-far.png?v=20260813"
+  };
+  let loadedPenguinParts = 0;
+  for (const [name, source] of Object.entries(penguinPartSources)) {
+    const image = new Image();
+    image.decoding = "async";
+    image.src = source;
+    image.addEventListener("load", () => {
+      loadedPenguinParts += 1;
+      penguinPartsReady = loadedPenguinParts === Object.keys(penguinPartSources).length;
+    });
+    penguinParts[name] = image;
+  }
+
+  const workerHammerSheet = new Image();
+  let workerHammerSheetReady = false;
+  workerHammerSheet.decoding = "async";
+  workerHammerSheet.src = "./assets/worker-hammer-motion-sprite-sheet.png?v=20260814-order-1243";
+  workerHammerSheet.addEventListener("load", () => { workerHammerSheetReady = true; });
+  const WORKER_HAMMER_FRAME_SIZE = 512;
+  const WORKER_HAMMER_FRAME_COUNT = 4;
+
+  const meltingIceImage = new Image();
+  let meltingIceImageReady = false;
+  meltingIceImage.decoding = "async";
+  meltingIceImage.src = "./assets/ice-block-melting.png?v=20260814-vertex-v2";
+  meltingIceImage.addEventListener("load", () => { meltingIceImageReady = true; });
+
+  const fireWoodImage = new Image();
+  let fireWoodImageReady = false;
+  fireWoodImage.decoding = "async";
+  fireWoodImage.src = "./assets/fire-wood.png?v=20260814";
+  fireWoodImage.addEventListener("load", () => { fireWoodImageReady = true; });
+
+  const fireFlameSheet = new Image();
+  let fireFlameSheetReady = false;
+  fireFlameSheet.decoding = "async";
+  fireFlameSheet.src = "./assets/fire-flame-sprite-sheet.png?v=20260814";
+  fireFlameSheet.addEventListener("load", () => { fireFlameSheetReady = true; });
+  const FIRE_FLAME_FRAME_SIZE = 512;
+  const FIRE_FLAME_FRAME_COUNT = 5;
+  const FIRE_FLAME_FRAME_DURATION = 110;
+
   const VIEW_W = 390;
   const MAX_STAGES = 10;
   const STAGE_HEIGHT = 1848;
@@ -51,7 +100,7 @@
   const state = {
     phase: "intro", cameraY: 0, targetCameraY: 0, built: 0, score: 0,
     integrity: 100, tiltX: 0, tiltY: 0, keyTilt: 0, paused: false,
-    baseBeta: null, lastTime: 0, roundDelay: 0, flash: 0, particles: [],
+    baseBeta: null, lastTime: 0, roundDelay: 0, hammerDuration: 0, flash: 0, particles: [], wetMarks: [],
     block: null, drag: false, dragX: 0, combo: 0,
     coast: { left: [], right: [] }, houseX: 129, houseLane: 1,
     celebration: 0, stage: 0, stageBase: 0, completedIgloos: 0,
@@ -118,6 +167,67 @@
       sprite.sx, sprite.sy, sprite.sw, sprite.sh,
       -width * .5, -height * .5, width, height
     );
+    ctx.restore();
+    return true;
+  }
+
+  function drawPenguinPart(name, x, y, width, height, options = {}) {
+    const image = penguinParts[name];
+    if (!penguinPartsReady || !image) return;
+    const { rotation = 0, pivotX = .5, pivotY = .5, flip = false } = options;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    ctx.scale(flip ? -1 : 1, 1);
+    ctx.drawImage(image, -width * pivotX, -height * pivotY, width, height);
+    ctx.restore();
+  }
+
+  function drawAnimatedPenguin(o) {
+    if (!penguinPartsReady) return false;
+    const isWalking = o.pause <= 0 && o.step > 0;
+    const stride = isWalking ? Math.sin(o.step * Math.PI * 2) : 0;
+    const armSwing = stride * .34;
+    const footSwing = stride * .28;
+    const lift = o.walkLift || 0;
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.translate(o.x + o.w * .5, o.y + o.h * .5 - lift);
+    ctx.scale(o.dir < 0 ? -1 : 1, 1);
+
+    // Bottom layer 5: large character-right foot, moved to the left-foot position.
+    drawPenguinPart("footNear", -8 - stride * 2, 16, 16, 11, {
+      rotation: footSwing,
+      pivotX: .5,
+      pivotY: .18
+    });
+
+    // Layer 4: small character-left foot, moved to the right-foot position.
+    drawPenguinPart("footFar", 8 + stride * 2, 16, 13, 10, {
+      rotation: -footSwing,
+      pivotX: .5,
+      pivotY: .18
+    });
+
+    // Layer 3: character-right arm, raised 5px from its previous position.
+    drawPenguinPart("armNear", 14, -3, 12, 18, {
+      rotation: -armSwing,
+      pivotX: .5,
+      pivotY: .08
+    });
+
+    // Layer 2: torso.
+    drawPenguinPart("body", 0, -2, 37, 44);
+
+    // Top layer 1: mirrored copy of the right arm, raised 5px.
+    drawPenguinPart("armNear", -14, -3, 12, 18, {
+      rotation: armSwing,
+      pivotX: .5,
+      pivotY: .08,
+      flip: true
+    });
+
     ctx.restore();
     return true;
   }
@@ -277,23 +387,29 @@
     state.tiltY += (clamp((beta - state.baseBeta) / 28, -.7, .7) - state.tiltY) * .18;
   }
 
+  function beginMaking(delay) {
+    state.phase = "making";
+    state.roundDelay = delay;
+    state.hammerDuration = delay;
+  }
+
   function resetGame() {
     state.stage = 0; state.stageBase = 0; state.completedIgloos = 0; state.energy = 100;
     state.pastHouses.length = 0;
     generateCoast();
     positionStageObstacles();
     randomizeHouse();
-    state.phase = "making";
     state.cameraY = 0; state.targetCameraY = 0; state.built = 0; state.score = 0;
-    state.integrity = 100; state.roundDelay = 1.15; state.block = null; state.paused = false;
-    state.particles.length = 0; state.baseBeta = null; state.combo = 0; state.celebration = 0;
+    state.integrity = 100; state.block = null; state.paused = false;
+    beginMaking(1.15);
+    state.particles.length = 0; state.wetMarks.length = 0; state.baseBeta = null; state.combo = 0; state.celebration = 0;
     ui.result.hidden = true; ui.start.style.display = "none"; ui.pause.textContent = "Ⅱ";
     updateHud();
     showToast("망치질 중… 얼음 조각 준비!", 1000);
   }
 
   function spawnBlock() {
-    state.block = { x: 178, y: state.stageBase + 168, w: 34, h: 34, vx: 0, vy: 44, angle: 0, spin: 0, hit: 0 };
+    state.block = { x: 178, y: state.stageBase + 168, w: 34, h: 34, vx: 0, vy: 44, hit: 0, hasMelted: false, trailX: null, trailY: null };
     state.integrity = 100;
     state.phase = "falling";
     burst(195, state.stageBase + 164, "ice", 12);
@@ -310,11 +426,49 @@
     }
   }
 
+  function leaveWetMark(block) {
+    const x = block.x + block.w * .5;
+    const y = block.y + block.h * .78;
+    if (block.trailX === null) {
+      block.trailX = x;
+      block.trailY = y;
+      return;
+    }
+    const dx = x - block.trailX;
+    const dy = y - block.trailY;
+    const distance = Math.hypot(dx, dy);
+    if (distance < 7) return;
+    const ux = dx / distance;
+    const uy = dy / distance;
+    const segmentLength = Math.min(distance, 13);
+    const startX = x - ux * segmentLength;
+    const startY = y - uy * segmentLength;
+    const curve = (Math.random() - .5) * 2.4;
+    block.trailX = x;
+    block.trailY = y;
+    const life = 1.35 + Math.random() * .3;
+    state.wetMarks.push({
+      x: (startX + x) * .5,
+      y: (startY + y) * .5,
+      x1: startX,
+      y1: startY,
+      x2: x,
+      y2: y,
+      cx: (startX + x) * .5 - uy * curve,
+      cy: (startY + y) * .5 + ux * curve,
+      width: block.w,
+      life,
+      maxLife: life,
+      shine: Math.random() > .45
+    });
+    if (state.wetMarks.length > 150) state.wetMarks.splice(0, state.wetMarks.length - 150);
+  }
+
   function hitBlock(amount, pushX, label) {
     const b = state.block;
     if (!b || b.hit > 0) return;
     state.integrity = clamp(state.integrity - amount, 0, 100);
-    b.vx += pushX; b.vy *= .64; b.spin += pushX * .018; b.hit = .45;
+    b.vx += pushX; b.vy *= .64; b.hit = .45;
     state.flash = .12;
     burst(b.x + b.w / 2, b.y + b.h / 2, "ice", 7);
     showToast(label, 850);
@@ -324,8 +478,7 @@
     if (!state.block) return;
     burst(state.block.x + 17, state.block.y + 17, "ice", 22);
     state.block = null;
-    state.phase = "making";
-    state.roundDelay = 1.5;
+    beginMaking(1.5);
     state.cameraY = state.stageBase;
     state.targetCameraY = state.stageBase;
     state.combo = 0;
@@ -342,7 +495,6 @@
     b.fallType = "sea";
     b.vx *= .72;
     b.vy = 58;
-    b.spin += (b.vx < 0 ? -1 : 1) * 2.4;
     state.combo = 0;
     state.energy = clamp(state.energy - (5 + state.stage * .55), 0, 100);
     showToast("첨벙! 얼음 조각이 가라앉아요", 1100);
@@ -357,7 +509,6 @@
     b.fallType = "hole";
     b.vx *= .18;
     b.vy = 28;
-    b.spin += (b.vx < 0 ? -1 : 1) * 2.8;
     state.combo = 0;
     state.energy = clamp(state.energy - (5 + state.stage * .55), 0, 100);
     showToast("앗! 얼음 조각이 틈새로 빠져요", 1100);
@@ -365,8 +516,7 @@
 
   function finishDrop() {
     state.block = null;
-    state.phase = "making";
-    state.roundDelay = 1.15;
+    beginMaking(1.15);
     state.targetCameraY = state.stageBase;
     showToast("새 얼음 조각을 만들어요", 1000);
   }
@@ -388,8 +538,7 @@
       state.targetCameraY = clamp(currentHouseY() - viewHeight() * .58, 0, cameraLimit());
       showToast("이글루 완성! 다음 구간으로 내려가요!", 1700);
     } else {
-      state.phase = "making";
-      state.roundDelay = 1.65;
+      beginMaking(1.65);
       showToast(`착! ${state.built}번째 얼음 안착`, 1250);
       setTimeout(() => { if (state.phase === "making") state.targetCameraY = state.stageBase; }, 500);
     }
@@ -404,8 +553,7 @@
     state.block = null;
     state.combo = 0;
     state.celebration = 0;
-    state.roundDelay = 1.35;
-    state.phase = "making";
+    beginMaking(1.35);
     ensureCoastThrough(state.stage + 2);
     positionStageObstacles();
     randomizeHouse();
@@ -483,6 +631,8 @@
     }
     for (const p of state.particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 180 * dt; p.life -= dt; }
     state.particles = state.particles.filter(p => p.life > 0);
+    for (const mark of state.wetMarks) mark.life -= dt;
+    state.wetMarks = state.wetMarks.filter(mark => mark.life > 0);
 
     if (state.phase === "celebrating") {
       state.celebration += dt;
@@ -506,7 +656,6 @@
       b.sink += dt;
       b.x += b.vx * dt;
       b.y += (b.vy + b.sink * 75) * dt;
-      b.angle += (b.spin + b.vx * .004) * dt;
       b.vx *= Math.pow(.976, dt * 60);
       if (b.fallType === "sea" && Math.random() < dt * 18) {
         burst(b.x + b.w * (.25 + Math.random() * .5), b.y + b.h * .5, "water", 1);
@@ -524,7 +673,6 @@
       b.vy = clamp(b.vy + accelY * dt, 42, 220);
       b.x += b.vx * dt;
       b.y += b.vy * dt;
-      b.angle += (b.spin + b.vx * .006) * dt;
       const left = leftCoast(b.y + b.h * .5);
       const right = rightCoast(b.y + b.h * .5);
       const blockCenterX = b.x + b.w * .5;
@@ -533,6 +681,7 @@
         updateHud();
         return;
       }
+      leaveWetMark(b);
 
       for (const o of obstacles) {
         if (!obstacleActive(o) || b.hit > 0 || !rects(b, o)) continue;
@@ -553,6 +702,7 @@
         if (!obstacleActive(o) || o.type !== "fire") continue;
         const hot = { x: o.x - 18, y: o.y - 18, w: o.w + 36, h: o.h + 36 };
         if (rects(b, hot)) {
+          b.hasMelted = true;
           state.integrity = clamp(state.integrity - dt * (21.5 + state.stage * 1.5), 0, 100);
           if (Math.random() < dt * 8) burst(b.x + 17, b.y + 17, "fire", 1);
         }
@@ -597,15 +747,18 @@
 
     ctx.save(); ctx.clip();
     ctx.fillStyle = "#a9e7ee"; ctx.fillRect(ISLAND_LEFT + 8, viewTop, ISLAND_RIGHT - ISLAND_LEFT - 16, viewBottom - viewTop);
-    ctx.fillStyle = "rgba(239,253,251,.28)";
     const firstTileY = Math.floor(viewTop / TILE_SIZE) * TILE_SIZE;
     for (let y = firstTileY; y < viewBottom; y += TILE_SIZE) {
       for (let x = GRID_X; x < 330; x += TILE_SIZE) {
-        ctx.strokeStyle = "rgba(39,145,179,.12)"; ctx.lineWidth = 1;
-        ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
-        if (hash(x * 3 + y) > .84) ctx.fillRect(x + 8, y + 8, 14, 3);
+        const column = Math.floor((x - GRID_X) / TILE_SIZE);
+        const row = Math.floor(y / TILE_SIZE);
+        if ((column + row) % 2 === 0) {
+          ctx.fillStyle = "rgba(39,145,179,.12)";
+          ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+        }
       }
     }
+    drawWetMarks(viewTop, viewBottom);
     ctx.restore();
 
     ctx.fillStyle = "#4ca8c5";
@@ -625,6 +778,41 @@
     if (state.block) drawBlock(state.block);
     for (const p of state.particles) { ctx.globalAlpha = clamp(p.life * 2, 0, 1); pxRect(p.x, p.y, p.size, p.size, p.color); }
     ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawWetMarks(viewTop, viewBottom) {
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const mark of state.wetMarks) {
+      if (mark.y < viewTop - 12 || mark.y > viewBottom + 12) continue;
+      const fade = clamp(mark.life / mark.maxLife, 0, 1);
+      const spread = 1 + (1 - fade) * .18;
+      ctx.globalAlpha = fade * .3;
+      ctx.strokeStyle = "#278fb5";
+      ctx.lineWidth = mark.width * spread;
+      ctx.beginPath();
+      ctx.moveTo(mark.x1, mark.y1);
+      ctx.quadraticCurveTo(mark.cx, mark.cy, mark.x2, mark.y2);
+      ctx.stroke();
+      ctx.globalAlpha = fade * .32;
+      ctx.strokeStyle = "#d9fbff";
+      ctx.lineWidth = Math.max(1, mark.width * .23);
+      ctx.beginPath();
+      ctx.moveTo(mark.x1, mark.y1 - .7);
+      ctx.quadraticCurveTo(mark.cx, mark.cy - .7, mark.x2, mark.y2 - .7);
+      ctx.stroke();
+      if (mark.shine) {
+        ctx.globalAlpha = fade * .55;
+        ctx.strokeStyle = "#f2ffff";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(mark.cx, mark.cy - 1.2);
+        ctx.lineTo(mark.x2, mark.y2 - 1.2);
+        ctx.stroke();
+      }
+    }
     ctx.restore();
   }
 
@@ -659,6 +847,24 @@
 
   function drawWorker(x, y) {
     const hammering = state.phase === "making";
+    if (hammering && workerHammerSheetReady) {
+      const motionDuration = Math.min(state.hammerDuration || .72, .72);
+      const motionProgress = clamp(1 - state.roundDelay / motionDuration, 0, .999);
+      const frameIndex = Math.min(
+        WORKER_HAMMER_FRAME_COUNT - 1,
+        Math.floor(motionProgress * WORKER_HAMMER_FRAME_COUNT)
+      );
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(
+        workerHammerSheet,
+        frameIndex * WORKER_HAMMER_FRAME_SIZE, 0,
+        WORKER_HAMMER_FRAME_SIZE, WORKER_HAMMER_FRAME_SIZE,
+        x - 49, y - 48, 132, 132
+      );
+      ctx.restore();
+      return;
+    }
     const hammerBounce = hammering ? Math.abs(Math.sin(performance.now() * .018)) * 3 : 0;
     if (drawSprite("worker", x - 13, y - 4 - hammerBounce, 61, 65, {
       rotation: hammering ? Math.sin(performance.now() * .018) * .045 : 0
@@ -737,6 +943,7 @@
 
   function drawObstacle(o) {
     if (o.type === "penguin") {
+      if (drawAnimatedPenguin(o)) return;
       if (drawSprite("penguin", o.x - 2, o.y - (o.walkLift || 0), 42, 47, { flip: o.dir < 0 })) return;
       ctx.save(); ctx.translate(o.x + (o.dir < 0 ? o.w : 0), o.y - (o.walkLift || 0)); ctx.scale(o.dir < 0 ? -1 : 1, 1);
       pxRect(5, 5, 29, 39, "#0b2448", "#06203e");
@@ -747,8 +954,24 @@
       pxRect(1, 42, 15, 5, "#ffbf43"); pxRect(24, 42, 15, 5, "#ffbf43");
       ctx.restore();
     } else if (o.type === "fire") {
-      const flicker = Math.sin(performance.now() * .012) * 2;
       ctx.fillStyle = "rgba(255,118,74,.13)"; ctx.beginPath(); ctx.arc(o.x + 27, o.y + 17, 48, 0, Math.PI * 2); ctx.fill();
+      if (fireWoodImageReady && fireFlameSheetReady) {
+        const frameIndex = Math.floor(performance.now() / FIRE_FLAME_FRAME_DURATION) % FIRE_FLAME_FRAME_COUNT;
+        const baselineY = o.y + 44;
+        const flameBaselineY = o.y + 30;
+        ctx.save();
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(fireWoodImage, o.x + 2, baselineY - 30, 50, 30);
+        ctx.drawImage(
+          fireFlameSheet,
+          frameIndex * FIRE_FLAME_FRAME_SIZE, 0,
+          FIRE_FLAME_FRAME_SIZE, FIRE_FLAME_FRAME_SIZE,
+          o.x + 3, flameBaselineY - 50, 48, 50
+        );
+        ctx.restore();
+        return;
+      }
+      const flicker = Math.sin(performance.now() * .012) * 2;
       if (drawSprite("fire", o.x + 6, o.y - 10 - flicker, 42, 54 + flicker)) return;
       ctx.fillStyle = "rgba(255,118,74,.13)"; ctx.beginPath(); ctx.arc(o.x + 27, o.y + 17, 48, 0, Math.PI * 2); ctx.fill();
       pxRect(o.x + 1, o.y + 33, 53, 8, "#613d32", "#17314c");
@@ -892,18 +1115,23 @@
     const submerge = clamp(sink / .82, 0, 1);
     ctx.save();
     ctx.globalAlpha = 1 - submerge * .68;
-    ctx.translate(b.x + b.w / 2, b.y + b.h / 2);
-    ctx.rotate(b.angle);
+    // Both ice sprites share the block's center-bottom as their anchor.
+    ctx.translate(b.x + b.w / 2, b.y + b.h);
     const s = (.82 + state.integrity / 100 * .18) * (1 - submerge * .3); ctx.scale(s, s);
-    if (spriteSheetReady) {
+    if (b.hasMelted && meltingIceImageReady) {
+      const meltedWidth = 38;
+      const meltedHeight = 34;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(meltingIceImage, -meltedWidth * .5, -meltedHeight, meltedWidth, meltedHeight);
+    } else if (spriteSheetReady) {
       const sprite = SPRITES.ice;
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(spriteSheet, sprite.sx, sprite.sy, sprite.sw, sprite.sh, -19, -19, 38, 38);
+      ctx.drawImage(spriteSheet, sprite.sx, sprite.sy, sprite.sw, sprite.sh, -19, -38, 38, 38);
     } else {
-      pxRect(-17, -17, 34, 34, "#bff5fb", "#287da8");
-      ctx.fillStyle = "#efffff"; ctx.fillRect(-10, -10, 14, 5);
-      ctx.fillStyle = "#73d5e8"; ctx.fillRect(7, 1, 5, 10);
-      ctx.fillStyle = "rgba(255,255,255,.7)"; ctx.fillRect(-10, 8, 6, 4);
+      pxRect(-17, -34, 34, 34, "#bff5fb", "#287da8");
+      ctx.fillStyle = "#efffff"; ctx.fillRect(-10, -27, 14, 5);
+      ctx.fillStyle = "#73d5e8"; ctx.fillRect(7, -16, 5, 10);
+      ctx.fillStyle = "rgba(255,255,255,.7)"; ctx.fillRect(-10, -9, 6, 4);
     }
     ctx.restore();
 
