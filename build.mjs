@@ -10,6 +10,7 @@ const resourceSheet = readFileSync(resolve(root, "assets/ice-breaking-resource-s
 const penguinBuild = readFileSync(resolve(root, "assets/penguin-build.png"));
 const workerHammerMotionSheet = readFileSync(resolve(root, "assets/worker-hammer-motion-sprite-sheet.png"));
 const meltingIceBlock = readFileSync(resolve(root, "assets/ice-block-melting.png"));
+const iceBlockShadow = readFileSync(resolve(root, "assets/ice-block-shadow.png"));
 const fireWood = readFileSync(resolve(root, "assets/fire-wood.png"));
 const fireFlameSpriteSheet = readFileSync(resolve(root, "assets/fire-flame-sprite-sheet.png"));
 const output = resolve(root, "dist/server");
@@ -31,6 +32,7 @@ const binaryFiles = {
   "/assets/penguin-build.png": { body: ${JSON.stringify(penguinBuild.toString("base64"))}, type: "image/png" },
   "/assets/worker-hammer-motion-sprite-sheet.png": { body: ${JSON.stringify(workerHammerMotionSheet.toString("base64"))}, type: "image/png" },
   "/assets/ice-block-melting.png": { body: ${JSON.stringify(meltingIceBlock.toString("base64"))}, type: "image/png" },
+  "/assets/ice-block-shadow.png": { body: ${JSON.stringify(iceBlockShadow.toString("base64"))}, type: "image/png" },
   "/assets/fire-wood.png": { body: ${JSON.stringify(fireWood.toString("base64"))}, type: "image/png" },
   "/assets/fire-flame-sprite-sheet.png": { body: ${JSON.stringify(fireFlameSpriteSheet.toString("base64"))}, type: "image/png" }
 };
