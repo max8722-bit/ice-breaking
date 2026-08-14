@@ -934,7 +934,7 @@
       ctx.stroke();
       ctx.globalAlpha = fade * .2;
       ctx.strokeStyle = "#d9fbff";
-      ctx.lineWidth = Math.max(1, mark.width * .23);
+      ctx.lineWidth = Math.max(1, mark.width * .42);
       ctx.beginPath();
       ctx.moveTo(mark.x1, mark.y1 - .7);
       ctx.quadraticCurveTo(mark.cx, mark.cy - .7, mark.x2, mark.y2 - .7);
