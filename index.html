@@ -1,1 +1,78 @@
-m�눧��bu��g��)�{m�U,j�jǺ�7an{��)ߊW���_�W�n�����jG�r�^v����n�)��X�z�����7]y�yל�ע������ج�V�����,j��zn�)����^}����+��b��.�����i����^}����+��h�
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#071c3b" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>ICE BREAKING — 기울여 얼음집을 완성하세요</title>
+    <link rel="stylesheet" href="./styles.css?v=20260814-polished-island" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="game-phone" aria-label="아이스 브레이킹 게임">
+        <div class="canvas-wrap" id="canvasWrap">
+          <canvas id="gameCanvas" width="390" height="700" aria-label="게임 화면"></canvas>
+          <div class="character-panel" aria-label="캐릭터 체력">
+            <div class="character-panel__label"><span>캐릭터 체력</span><strong id="playerEnergyValue">100%</strong></div>
+            <div class="character-panel__track"><i id="playerEnergyFill"></i></div>
+          </div>
+          <div class="build-panel" aria-label="이글루 완성도">
+            <div class="build-meter__label"><span id="stageLabel">STAGE 1 / 10</span><strong id="buildCount">0 / 3</strong></div>
+            <div class="build-meter__track"><i id="buildFill"></i></div>
+          </div>
+          <div class="toast" id="toast" aria-live="polite">망치질 준비!</div>
+
+          <div class="tilt-gauge" aria-hidden="true">
+            <span>왼쪽</span>
+            <div><i id="tiltDot"></i></div>
+            <span>오른쪽</span>
+          </div>
+
+          <section class="start-card" id="startCard">
+            <p class="start-card__eyebrow">POLAR WORKSHOP № 01</p>
+            <div class="start-card__hero" aria-hidden="true">
+              <span class="hero-hammer">⌕</span>
+              <span class="hero-ice">◆</span>
+            </div>
+            <h2>기울이고,<br /><em>얼음집을 완성하세요!</em></h2>
+            <p class="start-card__copy">점점 늘어나는 불·펭귄·틈새를 피해<br />깨진 이글루 10채를 모두 수리하세요.</p>
+            <div class="how-to">
+              <div><b>01</b><span>휴대폰을<br />좌우로 기울이기</span></div>
+              <i>→</i>
+              <div><b>02</b><span>얼음 조각<br />3개 안착하기</span></div>
+            </div>
+            <button class="primary-button" id="startButton" type="button">
+              <span>게임 시작</span><small>기울기 센서 켜기</small>
+            </button>
+            <p class="fallback-note">PC에서는 ← → 키 또는 화면 드래그</p>
+          </section>
+
+          <section class="result-card" id="resultCard" hidden>
+            <p class="result-card__eyebrow" id="resultEyebrow">EXPEDITION OVER</p>
+            <div class="result-card__igloo" id="resultIcon" aria-hidden="true">⌂</div>
+            <h2 id="resultTitle">게임 오버</h2>
+            <p id="resultCopy">캐릭터의 체력이 모두 소진됐어요.</p>
+            <div class="result-card__score"><span>최종 점수</span><strong id="finalScore">0000</strong></div>
+            <button class="primary-button" id="retryButton" type="button"><span>다시 만들기</span><small>새 얼음집 시작</small></button>
+          </section>
+
+          <section class="tutorial-overlay" id="tutorialOverlay" hidden aria-modal="true" role="dialog" aria-labelledby="tutorialTitle">
+            <div class="tutorial-beam" aria-hidden="true"></div>
+            <div class="tutorial-popup">
+              <p class="tutorial-popup__eyebrow">HOW TO PLAY · 01</p>
+              <h2 id="tutorialTitle">휴대폰을 좌우로<br /><em>기울여 주세요!</em></h2>
+              <img src="./assets/tutorial-tilt.jpg" alt="휴대폰을 좌우로 기울여 얼음 조각을 이글루까지 이동시키는 방법" />
+              <p>얼음 조각이 바다와 틈새에 빠지지 않도록<br />기울기를 조절해 이글루까지 안내하세요.</p>
+              <button class="primary-button" id="tutorialStartButton" type="button">
+                <span>알겠어요, 출발!</span><small>첫 얼음 만들기</small>
+              </button>
+            </div>
+          </section>
+          <button id="pauseButton" type="button" aria-label="일시정지">Ⅱ</button>
+        </div>
+      </section>
+    </main>
+    <script src="./game.js?v=20260814-penguin-build"></script>
+  </body>
+</html>
