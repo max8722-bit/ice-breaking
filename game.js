@@ -77,7 +77,7 @@
   const iceBlockShadowImage = new Image();
   let iceBlockShadowImageReady = false;
   iceBlockShadowImage.decoding = "async";
-  iceBlockShadowImage.src = "./assets/ice-block-shadow.png?v=20260814";
+  iceBlockShadowImage.src = "./assets/ice-block-shadow.png?v=20260814-brighter-overlap";
   iceBlockShadowImage.addEventListener("load", () => { iceBlockShadowImageReady = true; });
 
   const fireWoodImage = new Image();
@@ -1303,7 +1303,7 @@
       ctx.save();
       ctx.globalAlpha *= .82;
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(iceBlockShadowImage, -25, -8, 50, 25);
+      ctx.drawImage(iceBlockShadowImage, -25, -13, 50, 25);
       ctx.restore();
     }
     const visualStage = Math.max(
