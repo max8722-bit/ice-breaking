@@ -51,6 +51,7 @@ python3 -m http.server 4173
 - 리소스 위치: `assets/ice-breaking-resource-sheet.png`
 - 펭귄 애니메이션 리소스: `assets/penguin-body.png`, `assets/penguin-arm-near.png`(양팔 공용), `assets/penguin-foot-near.png`, `assets/penguin-foot-far.png`
 - 캐릭터 망치질 리소스: `assets/worker-hammer-motion-sprite-sheet.png` (가로 4프레임, 재생 순서 1 → 2 → 4 → 3, 화면 왼쪽 신발 밑창 중심·바닥선 정렬)
-- 녹은 얼음 조각 리소스: `assets/ice-block-melting.png`
+- 얼음 변화 리소스: `assets/ice-block-base.png`, `assets/ice-block-melting.png`, `assets/ice-block-melting-stage-2.png` (모두 370×377, 중앙 하단 기준점 통일)
+- 얼음 변화 스프라이트 시트: `assets/ice-melting-progression-sprite-sheet.png` (가로 3프레임, 프레임당 370×377)
 - 모닥불은 고정 장작 `assets/fire-wood.png`와 가로 5프레임 불꽃 `assets/fire-flame-sprite-sheet.png`로 분리되어 약 0.55초 주기로 반복 재생됩니다.
 - 작은 화면에서도 윤곽이 선명하게 보이도록 각 오브젝트의 실제 투명 영역을 잘라 캔버스에 렌더링합니다.

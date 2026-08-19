@@ -48,16 +48,22 @@
   const WORKER_HAMMER_FRAME_SIZE = 512;
   const WORKER_HAMMER_FRAME_COUNT = 4;
 
+  const baseIceImage = new Image();
+  let baseIceImageReady = false;
+  baseIceImage.decoding = "async";
+  baseIceImage.src = "./assets/ice-block-base.png?v=20260819-normalized-370x377";
+  baseIceImage.addEventListener("load", () => { baseIceImageReady = true; });
+
   const meltingIceImage = new Image();
   let meltingIceImageReady = false;
   meltingIceImage.decoding = "async";
-  meltingIceImage.src = "./assets/ice-block-melting.png?v=20260814-vertex-v2";
+  meltingIceImage.src = "./assets/ice-block-melting.png?v=20260819-normalized-370x377";
   meltingIceImage.addEventListener("load", () => { meltingIceImageReady = true; });
 
   const meltingIceStage2Image = new Image();
   let meltingIceStage2ImageReady = false;
   meltingIceStage2Image.decoding = "async";
-  meltingIceStage2Image.src = "./assets/ice-block-melting-stage-2.png?v=20260814-second-fire-contact";
+  meltingIceStage2Image.src = "./assets/ice-block-melting-stage-2.png?v=20260819-normalized-370x377";
   meltingIceStage2Image.addEventListener("load", () => { meltingIceStage2ImageReady = true; });
 
   const iceBlockShadowImage = new Image();
@@ -1271,16 +1277,14 @@
     }
     const visualStage = b.meltStage || 0;
     if (visualStage >= 2 && meltingIceStage2ImageReady) {
-      const meltedWidth = 38;
-      const meltedHeight = 27;
       ctx.imageSmoothingEnabled = true;
-      // Keep every melt sprite anchored to the block's center-bottom point.
-      ctx.drawImage(meltingIceStage2Image, -meltedWidth * .5, -meltedHeight, meltedWidth, meltedHeight);
+      ctx.drawImage(meltingIceStage2Image, -19, -38, 38, 38);
     } else if (visualStage >= 1 && meltingIceImageReady) {
-      const meltedWidth = 38;
-      const meltedHeight = 34;
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(meltingIceImage, -meltedWidth * .5, -meltedHeight, meltedWidth, meltedHeight);
+      ctx.drawImage(meltingIceImage, -19, -38, 38, 38);
+    } else if (baseIceImageReady) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(baseIceImage, -19, -38, 38, 38);
     } else if (spriteSheetReady) {
       const sprite = SPRITES.ice;
       ctx.imageSmoothingEnabled = true;
