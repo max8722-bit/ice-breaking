@@ -81,7 +81,7 @@
   const fireFlameSheet = new Image();
   let fireFlameSheetReady = false;
   fireFlameSheet.decoding = "async";
-  fireFlameSheet.src = "./assets/fire-flame-sprite-sheet.png?v=20260814";
+  fireFlameSheet.src = "./assets/fire-flame-sprite-sheet.png?v=20260819-smooth-loop";
   fireFlameSheet.addEventListener("load", () => { fireFlameSheetReady = true; });
   const FIRE_FLAME_FRAME_SIZE = 512;
   const FIRE_FLAME_FRAME_COUNT = 5;
@@ -99,6 +99,7 @@
   const IGLOO_DESIGN_H = 110;
   const IGLOO_W = TILE_SIZE * 2;
   const IGLOO_H = TILE_SIZE * 2;
+  const TOP_WORKER_SHIFT_Y = 15;
   const goal = { x: 129, y: HOUSE_OFFSET_Y, w: IGLOO_W, h: IGLOO_H };
   const state = {
     phase: "intro", cameraY: 0, targetCameraY: 0, built: 0, score: 0,
@@ -369,10 +370,10 @@
   }
 
   function spawnBlock() {
-    state.block = { x: 178, y: state.stageBase + 168, w: 34, h: 34, vx: 0, vy: 44, hit: 0, meltStage: 0, fireContacts: 0, touchingFire: false, trailX: null, trailY: null, wetTrail: null };
+    state.block = { x: 178, y: state.stageBase + 168 + TOP_WORKER_SHIFT_Y, w: 34, h: 34, vx: 0, vy: 44, hit: 0, meltStage: 0, fireContacts: 0, touchingFire: false, trailX: null, trailY: null, wetTrail: null };
     state.integrity = 100;
     state.phase = "falling";
-    burst(195, state.stageBase + 164, "ice", 12);
+    burst(195, state.stageBase + 164 + TOP_WORKER_SHIFT_Y, "ice", 12);
     showToast("기울여서 집까지 보내세요!", 1250);
   }
 
@@ -683,70 +684,111 @@
     if (outline) { ctx.fillStyle = fill; ctx.fillRect(Math.round(x + 3), Math.round(y + 3), Math.round(w - 6), Math.round(h - 6)); }
   }
 
+  const CLIFF_EDGE_STEP = 30;
+
+  function cliffEdgeX(side, y, inset = 0) {
+    const segment = Math.round(y / CLIFF_EDGE_STEP);
+    const sampleY = segment * CLIFF_EDGE_STEP;
+    const baseX = side === "left" ? leftCoast(sampleY) + inset : rightCoast(sampleY) - inset;
+    // A small deterministic offset makes each segment read as cut ice, without
+    // moving the actual coast/collision boundary used by gameplay.
+    const cut = (hash(segment * 173 + (side === "left" ? 41 : 89)) - .5) * 8;
+    return baseX + cut;
+  }
+
+  function coastEdgePoints(side, viewTop, viewBottom, inset = 0) {
+    const points = [{ x: cliffEdgeX(side, viewTop, inset), y: viewTop }];
+    const firstSegment = Math.floor(viewTop / CLIFF_EDGE_STEP) + 1;
+    for (let segment = firstSegment; segment * CLIFF_EDGE_STEP < viewBottom; segment++) {
+      const y = segment * CLIFF_EDGE_STEP;
+      points.push({ x: cliffEdgeX(side, y, inset), y });
+    }
+    points.push({ x: cliffEdgeX(side, viewBottom, inset), y: viewBottom });
+    return points;
+  }
+
   function traceIslandPath(viewTop, viewBottom, inset = 0) {
+    const leftPoints = coastEdgePoints("left", viewTop, viewBottom, inset);
+    const rightPoints = coastEdgePoints("right", viewTop, viewBottom, inset);
     ctx.beginPath();
-    ctx.moveTo(leftCoast(viewTop) + inset, viewTop);
-    for (let y = viewTop; y <= viewBottom; y += 10) ctx.lineTo(leftCoast(y) + inset, y);
-    for (let y = viewBottom; y >= viewTop; y -= 10) ctx.lineTo(rightCoast(y) - inset, y);
+    ctx.moveTo(leftPoints[0].x, leftPoints[0].y);
+    for (let i = 1; i < leftPoints.length; i++) ctx.lineTo(leftPoints[i].x, leftPoints[i].y);
+    for (let i = rightPoints.length - 1; i >= 0; i--) ctx.lineTo(rightPoints[i].x, rightPoints[i].y);
     ctx.closePath();
   }
 
   function traceCoast(side, viewTop, viewBottom, inset = 0) {
+    const points = coastEdgePoints(side, viewTop, viewBottom, inset);
     ctx.beginPath();
-    for (let y = viewTop; y <= viewBottom; y += 10) {
-      const x = side === "left" ? leftCoast(y) + inset : rightCoast(y) - inset;
-      if (y === viewTop) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
   }
 
   function drawSea(vh) {
     const seaGradient = ctx.createLinearGradient(0, 0, VIEW_W, vh);
-    seaGradient.addColorStop(0, "#075b91");
-    seaGradient.addColorStop(.45, "#087cac");
-    seaGradient.addColorStop(1, "#043f78");
+    seaGradient.addColorStop(0, "#08a9c7");
+    seaGradient.addColorStop(.48, "#0795bd");
+    seaGradient.addColorStop(1, "#087eae");
     ctx.fillStyle = seaGradient;
     ctx.fillRect(0, 0, VIEW_W, vh);
 
+    const viewTop = state.cameraY;
     const time = performance.now() * .001;
-    const start = Math.floor(state.cameraY / 38) * 38;
     ctx.save();
-    ctx.lineCap = "round";
-    for (let y = start; y < state.cameraY + vh + 48; y += 38) {
-      const sy = y - state.cameraY;
-      const row = Math.floor(y / 38);
-      const drift = (time * (row % 2 === 0 ? 10 : -7) + row * 31) % 58;
-      for (let x = -58; x < VIEW_W + 58; x += 58) {
-        const wx = x + drift;
-        const lift = Math.sin(time * 1.4 + x * .04 + y * .018) * 2;
-        ctx.strokeStyle = "rgba(137, 235, 247, .42)";
-        ctx.lineWidth = 2.4;
-        ctx.beginPath();
-        ctx.moveTo(wx, sy + lift);
-        ctx.quadraticCurveTo(wx + 11, sy - 5 + lift, wx + 25, sy + lift);
-        ctx.quadraticCurveTo(wx + 35, sy + 5 + lift, wx + 45, sy + 1 + lift);
-        ctx.stroke();
-
-        ctx.strokeStyle = "rgba(2, 45, 100, .34)";
-        ctx.lineWidth = 3.2;
-        ctx.beginPath();
-        ctx.moveTo(wx + 13, sy + 10 + lift);
-        ctx.quadraticCurveTo(wx + 28, sy + 15 + lift, wx + 43, sy + 10 + lift);
-        ctx.stroke();
-
-        if (hash(x + y) > .6) {
-          ctx.fillStyle = "rgba(218, 252, 255, .42)";
-          ctx.beginPath();
-          ctx.ellipse(wx + 8, sy - 11 + lift, 2.8, 1.3, -.25, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
+    // Broad, low-detail blue currents match the flat mobile-game reference.
+    const currentSpacing = 150;
+    const currentTravel = time * 8;
+    const firstCurrentRow = Math.floor((viewTop - currentTravel) / currentSpacing);
+    for (let row = firstCurrentRow; ; row++) {
+      const y = row * currentSpacing + currentTravel;
+      if (y >= viewTop + vh + 170) break;
+      const sy = y - viewTop;
+      const drift = Math.sin(time * .5 + y * .004) * 18;
+      ctx.fillStyle = "rgba(0, 86, 177, .16)";
+      ctx.beginPath();
+      ctx.moveTo(-30, sy + 24);
+      ctx.bezierCurveTo(65 + drift, sy - 7, 132 + drift, sy + 38, 214, sy + 13);
+      ctx.bezierCurveTo(285 - drift, sy - 10, 345 - drift, sy + 31, VIEW_W + 30, sy + 3);
+      ctx.lineTo(VIEW_W + 30, sy + 51);
+      ctx.bezierCurveTo(302, sy + 76, 226, sy + 38, 146, sy + 66);
+      ctx.bezierCurveTo(76, sy + 89, 18, sy + 52, -30, sy + 73);
+      ctx.closePath();
+      ctx.fill();
     }
-    const seaGlow = ctx.createRadialGradient(VIEW_W * .5, vh * .35, 10, VIEW_W * .5, vh * .35, VIEW_W * .72);
-    seaGlow.addColorStop(0, "rgba(86, 214, 231, .13)");
-    seaGlow.addColorStop(1, "rgba(0, 24, 72, .08)");
-    ctx.fillStyle = seaGlow;
-    ctx.fillRect(0, 0, VIEW_W, vh);
+
+    // Deterministic per-row variation keeps the moving oval shadows irregular
+    // without changing their shape on every frame.
+    const rippleSpacing = 116;
+    const rippleTravel = time * 5;
+    const firstRippleRow = Math.floor((viewTop - rippleTravel - 56) / rippleSpacing);
+    for (let row = firstRippleRow; ; row++) {
+      const y = row * rippleSpacing + rippleTravel;
+      if (y >= viewTop + vh + rippleSpacing + 56) break;
+      const sy = y - viewTop;
+      const sway = Math.sin(time * .85 + row * 1.7) * 11;
+      const bob = Math.sin(time * 1.15 + row * .9) * 2.5;
+      const pulse = 1 + Math.sin(time * 1.35 + row * 1.2) * .08;
+      const leftX = 13 + hash(row * 137 + 11) * 22;
+      const rightX = 13 + hash(row * 149 + 29) * 22;
+      const leftY = (hash(row * 173 + 47) - .5) * 54;
+      const rightY = (hash(row * 181 + 83) - .5) * 54;
+      const leftRadiusX = 4.5 + hash(row * 191 + 101) * 7.5;
+      const rightRadiusX = 4.5 + hash(row * 199 + 131) * 7.5;
+      const leftRadiusY = 1.35 + hash(row * 211 + 151) * 1.9;
+      const rightRadiusY = 1.35 + hash(row * 223 + 167) * 1.9;
+      const leftAlpha = .24 + hash(row * 227 + 181) * .14;
+      const rightAlpha = .24 + hash(row * 233 + 197) * .14;
+
+      ctx.fillStyle = `rgba(0, 76, 164, ${leftAlpha})`;
+      ctx.beginPath();
+      ctx.ellipse(leftX + sway, sy + leftY + bob, leftRadiusX * pulse, leftRadiusY * pulse, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = `rgba(0, 76, 164, ${rightAlpha})`;
+      ctx.beginPath();
+      ctx.ellipse(VIEW_W - rightX - sway, sy + rightY - bob, rightRadiusX * pulse, rightRadiusY * pulse, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -755,127 +797,93 @@
     const viewBottom = state.cameraY + vh + 70;
     ctx.save();
     ctx.translate(0, -state.cameraY);
+    ctx.lineCap = "butt";
+    ctx.lineJoin = "bevel";
 
-    // Deep water shadow and layered cliff rim give the long island real thickness.
+    // Flat blue cliff layers and a bright white top rim follow the references.
     traceIslandPath(viewTop, viewBottom);
-    ctx.fillStyle = "#2b88a8";
+    // Keep the narrow area between the checker floor and the outer cliff white,
+    // so no teal seam shows beside the white top rim.
+    ctx.fillStyle = "#f8ffff";
     ctx.fill();
-    ctx.strokeStyle = "rgba(2, 40, 83, .5)";
-    ctx.lineWidth = 24;
+    ctx.strokeStyle = "#0067a5";
+    ctx.lineWidth = 26;
     ctx.stroke();
-    ctx.strokeStyle = "#3d9fbd";
-    ctx.lineWidth = 15;
+    ctx.strokeStyle = "#08a7bf";
+    ctx.lineWidth = 17;
     ctx.stroke();
-    ctx.strokeStyle = "#8ad9e7";
-    ctx.lineWidth = 8;
+    ctx.strokeStyle = "#f8ffff";
+    ctx.lineWidth = 7;
     ctx.stroke();
-    ctx.strokeStyle = "#efffff";
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#f8ffff";
+    ctx.lineWidth = 3.2;
     ctx.stroke();
 
     ctx.save();
-    traceIslandPath(viewTop, viewBottom, 4);
+    traceIslandPath(viewTop, viewBottom, 5);
     ctx.clip();
-    const iceGradient = ctx.createLinearGradient(ISLAND_LEFT, viewTop, ISLAND_RIGHT, viewBottom);
-    iceGradient.addColorStop(0, "#ddf9f8");
-    iceGradient.addColorStop(.36, "#bceef1");
-    iceGradient.addColorStop(.72, "#9fdee7");
-    iceGradient.addColorStop(1, "#c9f3f3");
+    const iceGradient = ctx.createLinearGradient(ISLAND_LEFT, 0, ISLAND_RIGHT, 0);
+    iceGradient.addColorStop(0, "#f5fcfc");
+    iceGradient.addColorStop(.5, "#eaf5f8");
+    iceGradient.addColorStop(1, "#dcecf3");
     ctx.fillStyle = iceGradient;
     ctx.fillRect(0, viewTop, VIEW_W, viewBottom - viewTop);
 
-    // Soft frozen-cloud patches keep the surface from looking like a flat color.
-    const firstFrostY = Math.floor(viewTop / 118) * 118;
-    for (let y = firstFrostY; y < viewBottom + 118; y += 118) {
-      for (let x = 82; x < ISLAND_RIGHT - 12; x += 82) {
-        const radius = 30 + hash(x + y) * 28;
-        const frost = ctx.createRadialGradient(x, y, 2, x, y, radius);
-        frost.addColorStop(0, "rgba(255,255,255,.16)");
-        frost.addColorStop(1, "rgba(255,255,255,0)");
-        ctx.fillStyle = frost;
-        ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    // Large, filled checker tiles use the same 44px grid as all obstacles.
+    const firstTileY = Math.floor(viewTop / TILE_SIZE) * TILE_SIZE;
+    const firstTileX = GRID_X - TILE_SIZE * 2;
+    for (let y = firstTileY; y < viewBottom; y += TILE_SIZE) {
+      for (let x = firstTileX; x < ISLAND_RIGHT + TILE_SIZE; x += TILE_SIZE) {
+        const column = Math.floor((x - GRID_X) / TILE_SIZE);
+        const row = Math.floor(y / TILE_SIZE);
+        ctx.fillStyle = (column + row) % 2 === 0 ? "rgba(255,255,255,.72)" : "rgba(204,222,236,.58)";
+        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
       }
     }
 
-    const firstTileY = Math.floor(viewTop / TILE_SIZE) * TILE_SIZE;
-    const auroraTime = performance.now() * .00018;
+    // Keep the requested aurora palette as a very soft tint inside colored cells.
     ctx.save();
-    ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = .3;
     for (let y = firstTileY; y < viewBottom; y += TILE_SIZE) {
-      for (let x = GRID_X; x < 330; x += TILE_SIZE) {
+      for (let x = firstTileX; x < ISLAND_RIGHT + TILE_SIZE; x += TILE_SIZE) {
         const column = Math.floor((x - GRID_X) / TILE_SIZE);
         const row = Math.floor(y / TILE_SIZE);
-        if ((column + row) % 2 === 0) {
-          const phase = auroraTime + hash(column * 37 + row * 101) * Math.PI * 2;
-          const dx = Math.cos(phase) * TILE_SIZE * .72;
-          const dy = Math.sin(phase) * TILE_SIZE * .72;
-          const centerX = x + TILE_SIZE * .5;
-          const centerY = y + TILE_SIZE * .5;
-          const aurora = ctx.createLinearGradient(centerX - dx, centerY - dy, centerX + dx, centerY + dy);
-          aurora.addColorStop(0, "#6FFFD2");
-          aurora.addColorStop(.5, "#4CA7FF");
-          aurora.addColorStop(1, "#FF75D8");
+        if ((column + row) % 2 !== 0) {
+          const aurora = ctx.createLinearGradient(x, y, x + TILE_SIZE, y + TILE_SIZE);
+          aurora.addColorStop(0, "rgba(111,255,210,.22)");
+          aurora.addColorStop(.52, "rgba(76,167,255,.2)");
+          aurora.addColorStop(1, "rgba(255,117,216,.14)");
           ctx.fillStyle = aurora;
           ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-          ctx.fillStyle = "rgba(239, 255, 255, .34)";
-          ctx.fillRect(x, y, TILE_SIZE, 2);
         }
       }
     }
     ctx.restore();
 
-    // Fine cracks and bright inclusions add the same illustrated polish as the sprites.
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    for (let y = Math.floor(viewTop / 136) * 136 + 64; y < viewBottom; y += 136) {
-      const centerX = 112 + hash(y) * 150;
-      ctx.strokeStyle = "rgba(70, 166, 190, .22)";
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(centerX - 17, y - 9);
-      ctx.lineTo(centerX, y);
-      ctx.lineTo(centerX + 13, y - 12);
-      ctx.moveTo(centerX, y);
-      ctx.lineTo(centerX + 8, y + 18);
-      ctx.stroke();
-      ctx.strokeStyle = "rgba(247, 255, 255, .38)";
-      ctx.lineWidth = .8;
-      ctx.beginPath();
-      ctx.moveTo(centerX - 15, y - 10);
-      ctx.lineTo(centerX + 1, y - 1);
-      ctx.stroke();
+    // Soft white frost is concentrated near the coast like the references.
+    for (let y = Math.floor(viewTop / 132) * 132; y < viewBottom + 132; y += 132) {
+      for (const side of ["left", "right"]) {
+        const edgeX = cliffEdgeX(side, y, 10);
+        const centerX = edgeX + (side === "left" ? 17 : -17);
+        const frost = ctx.createRadialGradient(centerX, y, 2, centerX, y, 31);
+        frost.addColorStop(0, "rgba(255,255,255,.2)");
+        frost.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = frost;
+        ctx.fillRect(centerX - 31, y - 31, 62, 62);
+      }
     }
     drawWetMarks(viewTop, viewBottom);
     ctx.restore();
 
-    // Angular cliff facets and small foamy wavelets along both shores.
-    const firstEdgeY = Math.floor(viewTop / 76) * 76 + 32;
-    for (let y = firstEdgeY; y < viewBottom; y += 76) {
-      const left = leftCoast(y);
-      const right = rightCoast(y + 35);
-      ctx.fillStyle = "rgba(29, 113, 151, .5)";
-      ctx.beginPath();
-      ctx.moveTo(left - 5, y - 13); ctx.lineTo(left + 12, y - 4);
-      ctx.lineTo(left + 7, y + 19); ctx.lineTo(left - 4, y + 10); ctx.closePath(); ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(right + 5, y + 20); ctx.lineTo(right - 12, y + 28);
-      ctx.lineTo(right - 7, y + 49); ctx.lineTo(right + 5, y + 39); ctx.closePath(); ctx.fill();
-
-      ctx.strokeStyle = "rgba(224, 253, 255, .72)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(left - 12, y + 27); ctx.quadraticCurveTo(left - 20, y + 20, left - 27, y + 29);
-      ctx.moveTo(right + 12, y - 3); ctx.quadraticCurveTo(right + 20, y - 10, right + 28, y - 1);
-      ctx.stroke();
-    }
-
-    ctx.strokeStyle = "rgba(255, 255, 255, .7)";
-    ctx.lineWidth = 1.4;
-    traceCoast("left", viewTop, viewBottom, 1.5); ctx.stroke();
-    traceCoast("right", viewTop, viewBottom, 1.5); ctx.stroke();
-    drawBayMarkers(viewTop, viewBottom);
-    drawTopWorkshop();
+    // Cover only the inner teal seam beside the checker floor. The outer
+    // cyan cliff layer remains visible, matching the user's edited reference.
+    ctx.strokeStyle = "#f8ffff";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "butt";
+    ctx.lineJoin = "bevel";
+    traceCoast("left", viewTop, viewBottom, 4); ctx.stroke();
+    traceCoast("right", viewTop, viewBottom, 4); ctx.stroke();
+    drawTopWorker();
     for (const o of obstacles) if (obstacleActive(o)) drawObstacle(o);
     for (const house of state.pastHouses) {
       if (house.y + IGLOO_H < viewTop || house.y > viewBottom) continue;
@@ -966,33 +974,51 @@
     ctx.restore();
   }
 
-  function drawBayMarkers(viewTop, viewBottom) {
-    ctx.save();
-    ctx.font = "bold 8px sans-serif";
-    ctx.textAlign = "center";
-    for (const [side, bays] of [["left", state.coast.left], ["right", state.coast.right]]) {
-      for (const bay of bays) {
-        if (bay.center < viewTop - 30 || bay.center > viewBottom + 30) continue;
-        const x = side === "left" ? leftCoast(bay.center) + 14 : rightCoast(bay.center) - 14;
-        ctx.fillStyle = "rgba(20,105,145,.42)";
-        ctx.fillRect(x - 8, bay.center - 16, 16, 4);
-        ctx.fillRect(x - 12, bay.center - 7, 12, 3);
-        ctx.fillStyle = "rgba(235,253,255,.72)";
-        ctx.fillRect(x - 4, bay.center + 7, 9, 3);
-      }
-    }
-    ctx.restore();
-  }
-
-  function drawTopWorkshop() {
+  function drawTopWorker() {
     const base = state.stageBase;
-    ctx.fillStyle = "#5cb6ce"; ctx.fillRect(71, base + 54, 248, 99);
-    ctx.fillStyle = "#dffcff"; ctx.fillRect(80, base + 48, 230, 9);
-    ctx.fillStyle = "#337fa9"; ctx.fillRect(112, base + 95, 166, 17);
-    ctx.fillStyle = "#1d5b87"; ctx.fillRect(132, base + 112, 126, 8);
-    if (state.phase !== "celebrating" && state.phase !== "gameover" && state.phase !== "victory") drawWorker(178, base + 82);
-    ctx.fillStyle = "#e9fbff"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
-    ctx.fillText(state.phase === "making" ? "쾅!  쾅!" : "조심히 보내!", 195, base + 151);
+    if (state.phase === "celebrating" || state.phase === "gameover" || state.phase === "victory") return;
+    const workerY = base + 82 + TOP_WORKER_SHIFT_Y;
+    drawWorker(178, workerY);
+
+    const bubbleX = 38;
+    const bubbleY = workerY + 12;
+    const bubbleW = 94;
+    const bubbleH = 28;
+    ctx.save();
+    ctx.fillStyle = "#ffd65c";
+    ctx.strokeStyle = "#8c5428";
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(bubbleX + bubbleW - 3, bubbleY + 8);
+    ctx.lineTo(bubbleX + bubbleW + 14, bubbleY + 15);
+    ctx.lineTo(bubbleX + bubbleW - 3, bubbleY + 21);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(bubbleX + 7, bubbleY);
+    ctx.lineTo(bubbleX + bubbleW - 7, bubbleY);
+    ctx.quadraticCurveTo(bubbleX + bubbleW, bubbleY, bubbleX + bubbleW, bubbleY + 7);
+    ctx.lineTo(bubbleX + bubbleW, bubbleY + bubbleH - 7);
+    ctx.quadraticCurveTo(bubbleX + bubbleW, bubbleY + bubbleH, bubbleX + bubbleW - 7, bubbleY + bubbleH);
+    ctx.lineTo(bubbleX + 7, bubbleY + bubbleH);
+    ctx.quadraticCurveTo(bubbleX, bubbleY + bubbleH, bubbleX, bubbleY + bubbleH - 7);
+    ctx.lineTo(bubbleX, bubbleY + 7);
+    ctx.quadraticCurveTo(bubbleX, bubbleY, bubbleX + 7, bubbleY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255, 255, 255, .38)";
+    ctx.fillRect(bubbleX + 8, bubbleY + 4, bubbleW - 16, 2);
+    ctx.fillStyle = "#183b59";
+    ctx.font = "900 10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(state.phase === "making" ? "쾅!  쾅!" : "조심히 보내!", bubbleX + bubbleW * .5, bubbleY + bubbleH * .55);
+    ctx.restore();
   }
 
   function drawWorker(x, y) {
