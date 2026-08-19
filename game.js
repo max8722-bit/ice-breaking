@@ -63,7 +63,7 @@
   const meltingIceStage2Image = new Image();
   let meltingIceStage2ImageReady = false;
   meltingIceStage2Image.decoding = "async";
-  meltingIceStage2Image.src = "./assets/ice-block-melting-stage-2.png?v=20260819-normalized-370x377";
+  meltingIceStage2Image.src = "./assets/ice-block-melting-stage-2.png?v=20260819-stage3-top-down-10px";
   meltingIceStage2Image.addEventListener("load", () => { meltingIceStage2ImageReady = true; });
 
   const iceBlockShadowImage = new Image();
