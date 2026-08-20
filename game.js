@@ -13,7 +13,8 @@
     playerEnergyFill: document.getElementById("playerEnergyFill"), playerEnergyValue: document.getElementById("playerEnergyValue"),
     tiltDot: document.getElementById("tiltDot"), resultTitle: document.getElementById("resultTitle"),
     resultCopy: document.getElementById("resultCopy"), resultEyebrow: document.getElementById("resultEyebrow"),
-    resultIcon: document.getElementById("resultIcon"), finalScore: document.getElementById("finalScore")
+    resultIcon: document.getElementById("resultIcon"), finalScore: document.getElementById("finalScore"),
+    retryLabel: document.querySelector("#retryButton span"), retryHint: document.querySelector("#retryButton small")
   };
   ui.tutorial = document.getElementById("tutorialOverlay");
   ui.tutorialStart = document.getElementById("tutorialStartButton");
@@ -86,6 +87,17 @@
   const FIRE_FLAME_FRAME_SIZE = 512;
   const FIRE_FLAME_FRAME_COUNT = 5;
   const FIRE_FLAME_FRAME_DURATION = 110;
+  const PENGUIN_COLLISION_SPEED_SCALE = .7;
+  const WET_TRAIL_BLOCK_CLEAR_RADIUS = 12;
+  const ENERGY_DRAIN_BASE = .32;
+  const ENERGY_DRAIN_STAGE_STEP = .02;
+  const STAGE_CLEAR_RECOVERY_BASE = 13;
+  const STAGE_CLEAR_RECOVERY_STEP = .3;
+  const STAGE_CLEAR_RECOVERY_MIN = 10;
+  const DROP_ENERGY_PENALTY_BASE = 3.5;
+  const DROP_ENERGY_PENALTY_STEP = .25;
+  const DESTROYED_ENERGY_PENALTY_BASE = 5;
+  const DESTROYED_ENERGY_PENALTY_STEP = .35;
 
   const VIEW_W = 390;
   const MAX_STAGES = 10;
@@ -422,7 +434,9 @@
     const b = state.block;
     if (!b || b.hit > 0) return;
     state.integrity = clamp(state.integrity - amount, 0, 100);
-    b.vx += pushX; b.vy *= .64; b.hit = .45;
+    b.vx = b.vx * PENGUIN_COLLISION_SPEED_SCALE + pushX;
+    b.vy *= PENGUIN_COLLISION_SPEED_SCALE;
+    b.hit = .45;
     state.flash = .12;
     burst(b.x + b.w / 2, b.y + b.h / 2, "ice", 7);
     showToast(label, 850);
@@ -436,7 +450,7 @@
     state.cameraY = state.stageBase;
     state.targetCameraY = state.stageBase;
     state.combo = 0;
-    state.energy = clamp(state.energy - (7 + state.stage * .7), 0, 100);
+    state.energy = clamp(state.energy - (DESTROYED_ENERGY_PENALTY_BASE + state.stage * DESTROYED_ENERGY_PENALTY_STEP), 0, 100);
     showToast(`${reason} — 새 조각을 만들어요`, 1500);
   }
 
@@ -450,7 +464,7 @@
     b.vx *= .72;
     b.vy = 58;
     state.combo = 0;
-    state.energy = clamp(state.energy - (5 + state.stage * .55), 0, 100);
+    state.energy = clamp(state.energy - (DROP_ENERGY_PENALTY_BASE + state.stage * DROP_ENERGY_PENALTY_STEP), 0, 100);
     showToast("첨벙! 얼음 조각이 가라앉아요", 1100);
   }
 
@@ -464,7 +478,7 @@
     b.vx *= .18;
     b.vy = 28;
     state.combo = 0;
-    state.energy = clamp(state.energy - (5 + state.stage * .55), 0, 100);
+    state.energy = clamp(state.energy - (DROP_ENERGY_PENALTY_BASE + state.stage * DROP_ENERGY_PENALTY_STEP), 0, 100);
     showToast("앗! 얼음 조각이 틈새로 빠져요", 1100);
   }
 
@@ -486,7 +500,7 @@
     updateHud();
     if (state.built >= 3) {
       state.completedIgloos++;
-      state.energy = clamp(state.energy + Math.max(9, 14 - state.stage * .55), 0, 100);
+      state.energy = clamp(state.energy + Math.max(STAGE_CLEAR_RECOVERY_MIN, STAGE_CLEAR_RECOVERY_BASE - state.stage * STAGE_CLEAR_RECOVERY_STEP), 0, 100);
       state.phase = "celebrating";
       state.celebration = 0;
       state.targetCameraY = clamp(currentHouseY() - viewHeight() * .58, 0, cameraLimit());
@@ -525,6 +539,8 @@
     ui.resultCopy.textContent = `완성한 이글루 ${state.completedIgloos}채 · 캐릭터의 체력이 모두 소진됐어요.`;
     ui.resultIcon.textContent = "❄";
     ui.finalScore.textContent = String(state.score).padStart(4, "0");
+    ui.retryLabel.textContent = "다시 만들기";
+    ui.retryHint.textContent = "새 얼음집 시작";
     ui.result.hidden = false;
   }
 
@@ -532,17 +548,35 @@
     state.phase = "victory";
     state.block = null;
     ui.resultEyebrow.textContent = "ALL STAGES COMPLETE";
-    ui.resultTitle.textContent = "10 STAGE CLEAR!";
-    ui.resultCopy.textContent = `깨진 이글루 ${MAX_STAGES}채를 모두 수리했어요!`;
+    ui.resultTitle.textContent = "축하합니다!";
+    ui.resultCopy.textContent = "얼음 마을을 복구했어요!";
     ui.resultIcon.textContent = "⌂";
     ui.finalScore.textContent = String(state.score).padStart(4, "0");
+    ui.retryLabel.textContent = "메인화면으로";
+    ui.retryHint.textContent = "처음으로 돌아가기";
     ui.result.hidden = false;
+  }
+
+  function returnToMainScreen() {
+    state.stage = 0; state.stageBase = 0; state.completedIgloos = 0; state.energy = 100;
+    state.pastHouses.length = 0;
+    generateCoast();
+    positionStageObstacles();
+    randomizeHouse();
+    state.phase = "intro"; state.cameraY = 0; state.targetCameraY = 0; state.built = 0; state.score = 0;
+    state.integrity = 100; state.block = null; state.paused = false; state.roundDelay = 0; state.hammerDuration = 0;
+    state.particles.length = 0; state.wetMarks.length = 0; state.baseBeta = null; state.combo = 0; state.celebration = 0;
+    ui.result.hidden = true;
+    ui.start.style.display = "";
+    ui.pause.textContent = "Ⅱ";
+    ui.toast.classList.remove("is-visible");
+    updateHud();
   }
 
   function update(dt) {
     if (state.paused || state.phase === "intro") return;
     if (state.phase === "gameover" || state.phase === "victory") return;
-    const stageDrain = .55 + state.stage * .055;
+    const stageDrain = ENERGY_DRAIN_BASE + state.stage * ENERGY_DRAIN_STAGE_STEP;
     state.energy = clamp(state.energy - dt * stageDrain, 0, 100);
     if (state.energy <= 0) {
       updateHud();
@@ -929,7 +963,7 @@
       if (state.phase === "falling" && state.block?.wetTrail === trail) {
         const blockCenterX = state.block.x + state.block.w * .5;
         const blockTrailY = state.block.y + state.block.h * .78;
-        const clearRadius = Math.max(24, state.block.w * .72);
+        const clearRadius = WET_TRAIL_BLOCK_CLEAR_RADIUS;
         let visibleEnd = points.length;
         while (
           visibleEnd > 1
@@ -1382,7 +1416,10 @@
     ui.tutorial.hidden = true;
     resetGame();
   });
-  ui.retry.addEventListener("click", resetGame);
+  ui.retry.addEventListener("click", () => {
+    if (state.phase === "victory") returnToMainScreen();
+    else resetGame();
+  });
   ui.pause.addEventListener("click", () => {
     if (state.phase === "intro" || state.phase === "gameover" || state.phase === "victory") return;
     state.paused = !state.paused; ui.pause.textContent = state.paused ? "▶" : "Ⅱ";
