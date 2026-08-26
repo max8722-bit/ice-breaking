@@ -14,6 +14,11 @@ const meltingIceBlockStage2 = readFileSync(resolve(root, "assets/ice-block-melti
 const iceBlockShadow = readFileSync(resolve(root, "assets/ice-block-shadow.png"));
 const fireWood = readFileSync(resolve(root, "assets/fire-wood.png"));
 const fireFlameSpriteSheet = readFileSync(resolve(root, "assets/fire-flame-sprite-sheet.png"));
+const icePanelNineSlice = readFileSync(resolve(root, "assets/ui/ice-panel-empty-9-slice.png"));
+const icePauseButton = readFileSync(resolve(root, "assets/ui/ice-pause-button.svg"));
+const iglooStage1 = readFileSync(resolve(root, "assets/previews/igloo-stages/igloo-stage-1.png"));
+const iglooStage2 = readFileSync(resolve(root, "assets/previews/igloo-stages/igloo-stage-2.png"));
+const iglooStage3 = readFileSync(resolve(root, "assets/previews/igloo-stages/igloo-stage-3.png"));
 const output = resolve(root, "dist/server");
 
 rmSync(resolve(root, "dist"), { recursive: true, force: true });
@@ -36,7 +41,12 @@ const binaryFiles = {
   "/assets/ice-block-melting-stage-2.png": { body: ${JSON.stringify(meltingIceBlockStage2.toString("base64"))}, type: "image/png" },
   "/assets/ice-block-shadow.png": { body: ${JSON.stringify(iceBlockShadow.toString("base64"))}, type: "image/png" },
   "/assets/fire-wood.png": { body: ${JSON.stringify(fireWood.toString("base64"))}, type: "image/png" },
-  "/assets/fire-flame-sprite-sheet.png": { body: ${JSON.stringify(fireFlameSpriteSheet.toString("base64"))}, type: "image/png" }
+  "/assets/fire-flame-sprite-sheet.png": { body: ${JSON.stringify(fireFlameSpriteSheet.toString("base64"))}, type: "image/png" },
+  "/assets/ui/ice-panel-empty-9-slice.png": { body: ${JSON.stringify(icePanelNineSlice.toString("base64"))}, type: "image/png" },
+  "/assets/ui/ice-pause-button.svg": { body: ${JSON.stringify(icePauseButton.toString("base64"))}, type: "image/svg+xml; charset=utf-8" },
+  "/assets/previews/igloo-stages/igloo-stage-1.png": { body: ${JSON.stringify(iglooStage1.toString("base64"))}, type: "image/png" },
+  "/assets/previews/igloo-stages/igloo-stage-2.png": { body: ${JSON.stringify(iglooStage2.toString("base64"))}, type: "image/png" },
+  "/assets/previews/igloo-stages/igloo-stage-3.png": { body: ${JSON.stringify(iglooStage3.toString("base64"))}, type: "image/png" }
 };
 
 export default {

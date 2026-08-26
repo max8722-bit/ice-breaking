@@ -73,12 +73,13 @@ button { font: inherit; }
   bottom: 14px;
   left: 13px;
   display: grid;
-  grid-template-columns: 35px 1fr 42px;
+  grid-template-columns: 45px 1fr 45px;
   align-items: center;
   gap: 8px;
   pointer-events: none;
   color: rgba(226, 249, 255, .7);
-  font-size: 8px;
+  font-size: 11px;
+  font-weight: 800;
   text-align: center;
   text-shadow: 1px 1px #07355b;
 }
@@ -233,4 +234,178 @@ button { font: inherit; }
   .start-card__hero { width: 176px; height: 148px; margin-bottom: 5px; }
   .start-card h2 { font-size: 25px; }
   .start-card__copy { margin: 8px 0 10px; }
+}
+
+/* ICE UI 9-slice system
+   One source frame is divided into the four corners, four edges, and center.
+   border-image keeps the ice blocks crisp while each scene box changes size. */
+:root {
+  --ice-panel-nine-slice: url("./assets/ui/ice-panel-empty-9-slice.png");
+  --ice-panel-slice: 150;
+  --hud-gap: 7px;
+  --hud-side: 10px;
+  --pause-size: 44px;
+  --hud-panel-width: calc((100% - 78px) / 2);
+}
+
+.character-panel,
+.build-panel,
+.tutorial-popup,
+.result-card__score,
+.game-phone .toast,
+.tilt-gauge {
+  border: 12px solid transparent;
+  border-image-source: var(--ice-panel-nine-slice);
+  border-image-slice: var(--ice-panel-slice) fill;
+  border-image-width: 12px;
+  border-image-outset: 0;
+  border-image-repeat: stretch;
+  /* The nine-slice image paints the navy center itself. A transparent CSS
+     background keeps the frame's cut corners free of rectangular fill. */
+  background: transparent;
+  box-shadow: 0 5px 0 rgba(1, 20, 45, .72), 0 8px 18px rgba(0, 30, 60, .2);
+}
+
+.character-panel,
+.build-panel {
+  top: max(10px, env(safe-area-inset-top));
+  width: var(--hud-panel-width);
+  height: 76px;
+  padding: 7px 8px 8px;
+  pointer-events: none;
+}
+.character-panel { left: var(--hud-side); }
+.build-panel {
+  right: auto;
+  left: calc(var(--hud-side) + var(--hud-panel-width) + var(--hud-gap));
+}
+.character-panel__label,
+.build-meter__label {
+  min-height: 11px;
+  margin-bottom: 6px;
+  color: #f4fdff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .02em;
+  text-shadow: 0 2px 0 #03162f;
+}
+.character-panel__label strong { color: #76ecff; }
+.build-meter__label strong { color: #ffdc55; }
+.character-panel__track,
+.build-meter__track {
+  height: 12px;
+  padding: 2px;
+  border: 2px solid #50bee1;
+  border-radius: 4px;
+  background: #02132e;
+  box-shadow: inset 0 1px 3px #000a, 0 1px 0 #a9f5ff66;
+}
+.character-panel__track i,
+.build-meter__track i { border-radius: 2px; }
+
+#pauseButton {
+  top: max(21px, calc(env(safe-area-inset-top) + 11px));
+  right: var(--hud-side);
+  bottom: auto;
+  width: var(--pause-size);
+  height: var(--pause-size);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent url("./assets/ui/ice-pause-button.svg") center / contain no-repeat;
+  color: #f8fdff;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 3px 0 #001a38, 0 0 3px #001a38;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#pauseButton span { display: grid; width: 100%; height: 100%; place-items: center; padding-bottom: 2px; }
+#pauseButton:active { transform: translateY(3px) scale(.97); box-shadow: none; }
+
+.start-card::before,
+.result-card::before {
+  inset: 10px;
+  border: 14px solid transparent;
+  border-image-source: var(--ice-panel-nine-slice);
+  border-image-slice: var(--ice-panel-slice);
+  border-image-width: 14px;
+  border-image-repeat: stretch;
+  filter: drop-shadow(0 6px 0 rgba(1, 17, 39, .72));
+}
+
+.tutorial-popup {
+  padding: 13px 12px 14px;
+  border-image-width: 14px;
+  box-shadow: 0 8px 0 #03142e, 0 18px 45px rgba(0, 10, 30, .6);
+}
+.tutorial-popup::before,
+.tutorial-popup::after { display: none; }
+
+.result-card__score {
+  padding: 8px 10px;
+  border-image-width: 11px;
+}
+
+.game-phone .toast {
+  min-width: 154px;
+  padding: 5px 12px 7px;
+  border-image-width: 10px;
+  color: #ffde58;
+  font-weight: 900;
+  text-shadow: 0 2px 0 #03152f;
+}
+
+.tilt-gauge {
+  right: 10px;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  left: 10px;
+  min-height: 58px;
+  grid-template-columns: 54px 1fr 54px;
+  gap: 7px;
+  padding: 7px 9px 8px;
+  color: #f6fdff;
+  font-size: 14px;
+  font-weight: 900;
+  text-shadow: 0 2px 0 #02162f;
+}
+.tilt-gauge > div {
+  height: 9px;
+  border: 2px solid #48bddd;
+  border-radius: 6px;
+  background: #031a3c;
+  box-shadow: inset 0 1px 3px #000a;
+}
+.tilt-gauge i {
+  width: 16px;
+  height: 16px;
+  border-color: #fff4ad;
+  border-radius: 2px;
+  background: linear-gradient(135deg, #fff074, #ffb72e);
+  transform: translate(-50%, -50%) rotate(45deg);
+  box-shadow: 2px 2px 0 #a76a14;
+}
+
+@media (max-width: 350px) {
+  :root {
+    --hud-side: 7px;
+    --hud-gap: 5px;
+    --pause-size: 40px;
+    --hud-panel-width: calc((100% - 64px) / 2);
+  }
+  .character-panel,
+  .build-panel { width: var(--hud-panel-width); height: 72px; padding-right: 6px; padding-left: 6px; }
+  .build-panel { left: calc(var(--hud-side) + var(--hud-panel-width) + var(--hud-gap)); }
+  .character-panel__label,
+  .build-meter__label { font-size: 7.5px; }
+  #pauseButton { right: var(--hud-side); }
+}
+
+@media (max-height: 690px) {
+  .character-panel,
+  .build-panel { top: max(7px, env(safe-area-inset-top)); height: 69px; padding-top: 5px; padding-bottom: 6px; }
+  #pauseButton { top: max(17px, calc(env(safe-area-inset-top) + 10px)); }
+  .tilt-gauge { min-height: 52px; padding-top: 5px; padding-bottom: 6px; }
 }

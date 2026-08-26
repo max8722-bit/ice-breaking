@@ -35,6 +35,17 @@
     igloo: { sx: 1037, sy: 601, sw: 387, sh: 342 }
   };
 
+  const iglooStageImages = [1, 2, 3].map((stage) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.src = `./assets/previews/igloo-stages/igloo-stage-${stage}.png?v=20260820-body-width-match`;
+    return image;
+  });
+  const iglooStageImagesReady = iglooStageImages.map(() => false);
+  iglooStageImages.forEach((image, index) => {
+    image.addEventListener("load", () => { iglooStageImagesReady[index] = true; });
+  });
+
   const penguinImage = new Image();
   let penguinImageReady = false;
   penguinImage.decoding = "async";
@@ -87,6 +98,7 @@
   const FIRE_FLAME_FRAME_SIZE = 512;
   const FIRE_FLAME_FRAME_COUNT = 5;
   const FIRE_FLAME_FRAME_DURATION = 110;
+  const FIRE_GLOW_MAX_ALPHA = .13;
   const PENGUIN_COLLISION_SPEED_SCALE = .7;
   const WET_TRAIL_BLOCK_CLEAR_RADIUS = 12;
   const ENERGY_DRAIN_BASE = .32;
@@ -104,6 +116,10 @@
   const STAGE_HEIGHT = 1848;
   const TILE_SIZE = 44;
   const GRID_X = 70;
+  const CHECKER_MIN_VISIBILITY = .22;
+  const CLOUD_OVERLAY_STRENGTH = .20;
+  const SEA_CLOUD_SHADOW_STRENGTH = .10;
+  const CHECKER_CLOUD_SEED = Math.random() * 997;
   const ISLAND_LEFT = 54;
   const ISLAND_RIGHT = 336;
   const HOUSE_OFFSET_Y = 1726;
@@ -167,6 +183,287 @@
   }
 
   function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+  // The checker floor is rendered into a transparent WebGL canvas, then
+  // composited inside the island's existing Canvas 2D clip. This keeps the
+  // game renderer unchanged while allowing the floor to breathe like light
+  // is washing over the ice.
+  const checkerShader = {
+    canvas: document.createElement("canvas"),
+    gl: null,
+    program: null,
+    buffer: null,
+    locations: null,
+    failed: false
+  };
+
+  function compileCheckerShader(gl, type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      const message = gl.getShaderInfoLog(shader) || "unknown shader error";
+      gl.deleteShader(shader);
+      throw new Error(message);
+    }
+    return shader;
+  }
+
+  function initCheckerShader() {
+    if (checkerShader.program) return true;
+    if (checkerShader.failed) return false;
+
+    try {
+      const gl = checkerShader.canvas.getContext("webgl", {
+        alpha: true,
+        antialias: false,
+        premultipliedAlpha: false,
+        preserveDrawingBuffer: true
+      });
+      if (!gl) throw new Error("WebGL is unavailable");
+
+      const vertexShader = compileCheckerShader(gl, gl.VERTEX_SHADER, `
+        attribute vec2 a_position;
+        void main() {
+          gl_Position = vec4(a_position, 0.0, 1.0);
+        }
+      `);
+      const fragmentShader = compileCheckerShader(gl, gl.FRAGMENT_SHADER, `
+        precision mediump float;
+        uniform vec2 u_resolution;
+        uniform float u_cameraY;
+        uniform float u_time;
+        uniform float u_tileSize;
+        uniform float u_gridX;
+        uniform float u_cloudSeed;
+        uniform float u_surfaceMode;
+
+        float cloudHash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7)) + u_cloudSeed) * 43758.5453);
+        }
+
+        float cloudNoise(vec2 p) {
+          vec2 cell = floor(p);
+          vec2 local = fract(p);
+          local = local * local * (3.0 - 2.0 * local);
+          float a = cloudHash(cell);
+          float b = cloudHash(cell + vec2(1.0, 0.0));
+          float c = cloudHash(cell + vec2(0.0, 1.0));
+          float d = cloudHash(cell + vec2(1.0, 1.0));
+          return mix(mix(a, b, local.x), mix(c, d, local.x), local.y);
+        }
+
+        float cloudFbm(vec2 p) {
+          float value = 0.0;
+          value += cloudNoise(p) * 0.54;
+          p = p * 2.03 + vec2(11.7, 4.9);
+          value += cloudNoise(p) * 0.27;
+          p = p * 2.07 + vec2(3.1, 13.6);
+          value += cloudNoise(p) * 0.13;
+          p = p * 2.01 + vec2(17.2, 2.4);
+          value += cloudNoise(p) * 0.06;
+          return value;
+        }
+
+        void main() {
+          float screenY = u_resolution.y - gl_FragCoord.y;
+          float worldY = u_cameraY + screenY;
+          float column = floor((gl_FragCoord.x - u_gridX) / u_tileSize);
+          float row = floor(worldY / u_tileSize);
+          float odd = mod(column + row, 2.0);
+
+          // Several soft noise scales create irregular cloud groups. The seed
+          // changes on every launch, while time moves the groups continuously.
+          // Sample clouds in world space so their pattern stays attached to
+          // the ice floor instead of following the scrolling camera.
+          vec2 cloudPosition = vec2(gl_FragCoord.x, worldY) / vec2(155.0, 185.0);
+          cloudPosition += vec2(u_time * 0.088, -u_time * 0.026);
+          float broadCloud = cloudFbm(cloudPosition + vec2(u_cloudSeed * 0.013));
+          float brokenCloud = cloudFbm(cloudPosition * 1.37 + vec2(7.4, -3.8));
+          float cloudField = broadCloud * 0.76 + brokenCloud * 0.24;
+
+          // Slowly changing random density makes cloud groups arrive at
+          // irregular intervals instead of repeating on an obvious cycle.
+          float cloudEvent = cloudNoise(vec2(u_time * 0.085, u_cloudSeed * 0.071));
+          float cloudThreshold = mix(0.60, 0.43, cloudEvent);
+          float cloudCover = smoothstep(cloudThreshold - 0.13, cloudThreshold + 0.14, cloudField);
+
+          // The sea receives the same world-locked cloud movement, but its
+          // mask only adds a soft cloud shadow. The bright Overlay pass is
+          // deliberately filtered out for this surface.
+          if (u_surfaceMode > 0.5) {
+            vec3 seaCloudTint = vec3(0.018, 0.155, 0.255);
+            gl_FragColor = vec4(seaCloudTint, cloudCover * ${SEA_CLOUD_SHADOW_STRENGTH.toFixed(2)});
+            return;
+          }
+
+          float visibility = mix(1.0, ${CHECKER_MIN_VISIBILITY.toFixed(2)}, cloudCover);
+
+          vec3 whiteTile = vec3(1.0);
+          vec3 blueTile = vec3(0.800, 0.871, 0.925);
+          vec3 color = mix(whiteTile, blueTile, odd);
+
+          // Preserve the existing aurora tint (#6FFFD2, #4CA7FF, #FF75D8)
+          // very softly inside the colored squares.
+          float auroraPhase = fract((gl_FragCoord.x + worldY) / (u_tileSize * 3.0));
+          vec3 mint = vec3(0.435, 1.0, 0.824);
+          vec3 sky = vec3(0.298, 0.655, 1.0);
+          vec3 pink = vec3(1.0, 0.459, 0.847);
+          vec3 aurora = auroraPhase < 0.5
+            ? mix(mint, sky, auroraPhase * 2.0)
+            : mix(sky, pink, (auroraPhase - 0.5) * 2.0);
+          color = mix(color, aurora, odd * 0.055);
+
+          // Overlay-blend white into the areas where the cloud cover opens.
+          // The blend amount never exceeds the requested 20%.
+          vec3 overlayWhite = vec3(1.0);
+          vec3 overlayColor = mix(
+            2.0 * color * overlayWhite,
+            1.0 - 2.0 * (1.0 - color) * (1.0 - overlayWhite),
+            step(vec3(0.5), color)
+          );
+          float overlayMask = (1.0 - cloudCover) * ${CLOUD_OVERLAY_STRENGTH.toFixed(2)};
+          color = mix(color, overlayColor, overlayMask);
+
+          float baseAlpha = mix(0.72, 0.58, odd);
+          gl_FragColor = vec4(color, baseAlpha * visibility);
+        }
+      `);
+      const program = gl.createProgram();
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      gl.linkProgram(program);
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        throw new Error(gl.getProgramInfoLog(program) || "checker shader link failed");
+      }
+
+      const buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        -1, -1, 1, -1, -1, 1,
+        -1, 1, 1, -1, 1, 1
+      ]), gl.STATIC_DRAW);
+
+      checkerShader.gl = gl;
+      checkerShader.program = program;
+      checkerShader.buffer = buffer;
+      checkerShader.locations = {
+        position: gl.getAttribLocation(program, "a_position"),
+        resolution: gl.getUniformLocation(program, "u_resolution"),
+        cameraY: gl.getUniformLocation(program, "u_cameraY"),
+        time: gl.getUniformLocation(program, "u_time"),
+        tileSize: gl.getUniformLocation(program, "u_tileSize"),
+        gridX: gl.getUniformLocation(program, "u_gridX"),
+        cloudSeed: gl.getUniformLocation(program, "u_cloudSeed"),
+        surfaceMode: gl.getUniformLocation(program, "u_surfaceMode")
+      };
+      return true;
+    } catch (error) {
+      checkerShader.failed = true;
+      console.warn("Checker floor shader fallback enabled:", error);
+      return false;
+    }
+  }
+
+  function renderCheckerShader(vh, timeSeconds, surfaceMode = 0) {
+    if (!initCheckerShader()) return false;
+    const gl = checkerShader.gl;
+    const width = VIEW_W;
+    const height = Math.max(1, Math.ceil(vh));
+    if (checkerShader.canvas.width !== width || checkerShader.canvas.height !== height) {
+      checkerShader.canvas.width = width;
+      checkerShader.canvas.height = height;
+    }
+
+    gl.viewport(0, 0, width, height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(checkerShader.program);
+    gl.bindBuffer(gl.ARRAY_BUFFER, checkerShader.buffer);
+    gl.enableVertexAttribArray(checkerShader.locations.position);
+    gl.vertexAttribPointer(checkerShader.locations.position, 2, gl.FLOAT, false, 0, 0);
+    gl.uniform2f(checkerShader.locations.resolution, width, height);
+    gl.uniform1f(checkerShader.locations.cameraY, state.cameraY);
+    gl.uniform1f(checkerShader.locations.time, timeSeconds);
+    gl.uniform1f(checkerShader.locations.tileSize, TILE_SIZE);
+    gl.uniform1f(checkerShader.locations.gridX, GRID_X);
+    gl.uniform1f(checkerShader.locations.cloudSeed, CHECKER_CLOUD_SEED);
+    gl.uniform1f(checkerShader.locations.surfaceMode, surfaceMode);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    return true;
+  }
+
+  function fallbackCloudVisibility(x, y, timeSeconds) {
+    const seed = CHECKER_CLOUD_SEED;
+    const broad = .5 + .5 * Math.sin(x * .014 + y * .006 + timeSeconds * .4 + seed);
+    const broken = .5 + .5 * Math.sin(x * .027 - y * .011 + timeSeconds * .25 + seed * 1.7);
+    const event = .5 + .5 * Math.sin(timeSeconds * .2 + seed * .31);
+    const cloud = clamp((broad * .72 + broken * .28 - (.66 - event * .18)) / .28, 0, 1);
+    const softened = cloud * cloud * (3 - 2 * cloud);
+    return 1 - softened * (1 - CHECKER_MIN_VISIBILITY);
+  }
+
+  function drawCheckerFallback(viewTop, viewBottom, timeSeconds) {
+    const firstTileY = Math.floor(viewTop / TILE_SIZE) * TILE_SIZE;
+    const firstTileX = GRID_X - TILE_SIZE * 2;
+    ctx.save();
+    for (let y = firstTileY; y < viewBottom; y += TILE_SIZE) {
+      for (let x = firstTileX; x < ISLAND_RIGHT + TILE_SIZE; x += TILE_SIZE) {
+        const column = Math.floor((x - GRID_X) / TILE_SIZE);
+        const row = Math.floor(y / TILE_SIZE);
+        ctx.globalAlpha = fallbackCloudVisibility(x + TILE_SIZE * .5, y + TILE_SIZE * .5, timeSeconds);
+        ctx.fillStyle = (column + row) % 2 === 0 ? "rgba(255,255,255,.72)" : "rgba(204,222,236,.58)";
+        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+      }
+    }
+
+    for (let y = firstTileY; y < viewBottom; y += TILE_SIZE) {
+      for (let x = firstTileX; x < ISLAND_RIGHT + TILE_SIZE; x += TILE_SIZE) {
+        const column = Math.floor((x - GRID_X) / TILE_SIZE);
+        const row = Math.floor(y / TILE_SIZE);
+        if ((column + row) % 2 !== 0) {
+          ctx.globalAlpha = fallbackCloudVisibility(x + TILE_SIZE * .5, y + TILE_SIZE * .5, timeSeconds) * .3;
+          const aurora = ctx.createLinearGradient(x, y, x + TILE_SIZE, y + TILE_SIZE);
+          aurora.addColorStop(0, "rgba(111,255,210,.22)");
+          aurora.addColorStop(.52, "rgba(76,167,255,.2)");
+          aurora.addColorStop(1, "rgba(255,117,216,.14)");
+          ctx.fillStyle = aurora;
+          ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+        }
+      }
+    }
+
+    // Canvas fallback for the island-only 20% Overlay highlight.
+    ctx.globalCompositeOperation = "overlay";
+    ctx.fillStyle = "#ffffff";
+    for (let y = firstTileY; y < viewBottom; y += TILE_SIZE) {
+      for (let x = firstTileX; x < ISLAND_RIGHT + TILE_SIZE; x += TILE_SIZE) {
+        const visibility = fallbackCloudVisibility(x + TILE_SIZE * .5, y + TILE_SIZE * .5, timeSeconds);
+        const cloudCover = clamp((1 - visibility) / (1 - CHECKER_MIN_VISIBILITY), 0, 1);
+        ctx.globalAlpha = (1 - cloudCover) * CLOUD_OVERLAY_STRENGTH;
+        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawSeaCloudFallback(vh, timeSeconds) {
+    const cellSize = 52;
+    ctx.save();
+    ctx.fillStyle = "rgb(5, 40, 65)";
+    for (let sy = -cellSize; sy < vh + cellSize; sy += cellSize) {
+      const worldY = state.cameraY + sy;
+      for (let x = -cellSize; x < VIEW_W + cellSize; x += cellSize) {
+        const visibility = fallbackCloudVisibility(x + cellSize * .5, worldY + cellSize * .5, timeSeconds);
+        const cloudCover = clamp((1 - visibility) / (1 - CHECKER_MIN_VISIBILITY), 0, 1);
+        ctx.globalAlpha = cloudCover * SEA_CLOUD_SHADOW_STRENGTH;
+        ctx.fillRect(x, sy, cellSize + 1, cellSize + 1);
+      }
+    }
+    ctx.restore();
+  }
 
   function drawSprite(name, x, y, width, height, options = {}) {
     if (!spriteSheetReady) return false;
@@ -758,7 +1055,7 @@
     for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
   }
 
-  function drawSea(vh) {
+  function drawSea(vh, timeSeconds) {
     const seaGradient = ctx.createLinearGradient(0, 0, VIEW_W, vh);
     seaGradient.addColorStop(0, "#08a9c7");
     seaGradient.addColorStop(.48, "#0795bd");
@@ -767,7 +1064,7 @@
     ctx.fillRect(0, 0, VIEW_W, vh);
 
     const viewTop = state.cameraY;
-    const time = performance.now() * .001;
+    const time = timeSeconds;
     ctx.save();
     // Broad, low-detail blue currents match the flat mobile-game reference.
     const currentSpacing = 150;
@@ -824,9 +1121,17 @@
       ctx.fill();
     }
     ctx.restore();
+
+    // Reuse the floor's world-locked cloud field over the sea. Surface mode 1
+    // filters out the bright Overlay branch and keeps only the cloud shadow.
+    if (renderCheckerShader(vh, timeSeconds, 1)) {
+      ctx.drawImage(checkerShader.canvas, 0, 0, VIEW_W, vh);
+    } else {
+      drawSeaCloudFallback(vh, timeSeconds);
+    }
   }
 
-  function drawIsland(vh) {
+  function drawIsland(vh, timeSeconds) {
     const viewTop = Math.max(0, Math.floor((state.cameraY - 70) / 14) * 14);
     const viewBottom = state.cameraY + vh + 70;
     ctx.save();
@@ -863,36 +1168,13 @@
     ctx.fillStyle = iceGradient;
     ctx.fillRect(0, viewTop, VIEW_W, viewBottom - viewTop);
 
-    // Large, filled checker tiles use the same 44px grid as all obstacles.
-    const firstTileY = Math.floor(viewTop / TILE_SIZE) * TILE_SIZE;
-    const firstTileX = GRID_X - TILE_SIZE * 2;
-    for (let y = firstTileY; y < viewBottom; y += TILE_SIZE) {
-      for (let x = firstTileX; x < ISLAND_RIGHT + TILE_SIZE; x += TILE_SIZE) {
-        const column = Math.floor((x - GRID_X) / TILE_SIZE);
-        const row = Math.floor(y / TILE_SIZE);
-        ctx.fillStyle = (column + row) % 2 === 0 ? "rgba(255,255,255,.72)" : "rgba(204,222,236,.58)";
-        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-      }
+    // Composite the animated WebGL floor in world space so the checker grid
+    // remains locked to obstacles while the camera scrolls.
+    if (renderCheckerShader(vh, timeSeconds, 0)) {
+      ctx.drawImage(checkerShader.canvas, 0, state.cameraY, VIEW_W, vh);
+    } else {
+      drawCheckerFallback(viewTop, viewBottom, timeSeconds);
     }
-
-    // Keep the requested aurora palette as a very soft tint inside colored cells.
-    ctx.save();
-    ctx.globalAlpha = .3;
-    for (let y = firstTileY; y < viewBottom; y += TILE_SIZE) {
-      for (let x = firstTileX; x < ISLAND_RIGHT + TILE_SIZE; x += TILE_SIZE) {
-        const column = Math.floor((x - GRID_X) / TILE_SIZE);
-        const row = Math.floor(y / TILE_SIZE);
-        if ((column + row) % 2 !== 0) {
-          const aurora = ctx.createLinearGradient(x, y, x + TILE_SIZE, y + TILE_SIZE);
-          aurora.addColorStop(0, "rgba(111,255,210,.22)");
-          aurora.addColorStop(.52, "rgba(76,167,255,.2)");
-          aurora.addColorStop(1, "rgba(255,117,216,.14)");
-          ctx.fillStyle = aurora;
-          ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-        }
-      }
-    }
-    ctx.restore();
 
     // Soft white frost is concentrated near the coast like the references.
     for (let y = Math.floor(viewTop / 132) * 132; y < viewBottom + 132; y += 132) {
@@ -1164,7 +1446,8 @@
       pxRect(1, 42, 15, 5, "#ffbf43"); pxRect(24, 42, 15, 5, "#ffbf43");
       ctx.restore();
     } else if (o.type === "fire") {
-      ctx.fillStyle = "rgba(255,118,74,.13)"; ctx.beginPath(); ctx.arc(o.x + 27, o.y + 17, 48, 0, Math.PI * 2); ctx.fill();
+      const glowAlpha = fireGlowAlpha(o, performance.now());
+      ctx.fillStyle = `rgba(255,118,74,${glowAlpha})`; ctx.beginPath(); ctx.arc(o.x + 27, o.y + 17, 48, 0, Math.PI * 2); ctx.fill();
       if (fireWoodImageReady && fireFlameSheetReady) {
         const frameIndex = Math.floor(performance.now() / FIRE_FLAME_FRAME_DURATION) % FIRE_FLAME_FRAME_COUNT;
         const baselineY = o.y + 44;
@@ -1183,7 +1466,6 @@
       }
       const flicker = Math.sin(performance.now() * .012) * 2;
       if (drawSprite("fire", o.x + 6, o.y - 10 - flicker, 42, 54 + flicker)) return;
-      ctx.fillStyle = "rgba(255,118,74,.13)"; ctx.beginPath(); ctx.arc(o.x + 27, o.y + 17, 48, 0, Math.PI * 2); ctx.fill();
       pxRect(o.x + 1, o.y + 33, 53, 8, "#613d32", "#17314c");
       pxRect(o.x + 10, o.y + 28, 34, 8, "#9b5633");
       const flickerFallback = Math.sin(performance.now() * .012) * 4;
@@ -1210,22 +1492,73 @@
     }
   }
 
+  function fireGlowAlpha(obstacle, now) {
+    let pulse = obstacle.glowPulse;
+    if (!pulse) {
+      pulse = obstacle.glowPulse = createFireGlowCycle(now);
+    }
+
+    const elapsed = now - pulse.start;
+    if (elapsed < 0) return FIRE_GLOW_MAX_ALPHA;
+
+    const fadeOutEnd = pulse.fadeOut;
+    const lowHoldEnd = fadeOutEnd + pulse.lowHold;
+    const fadeInEnd = lowHoldEnd + pulse.fadeIn;
+    if (elapsed >= fadeInEnd) {
+      obstacle.glowPulse = createFireGlowCycle(now);
+      return FIRE_GLOW_MAX_ALPHA;
+    }
+
+    const minimumAlpha = FIRE_GLOW_MAX_ALPHA * pulse.minimumFactor;
+    if (elapsed < fadeOutEnd) {
+      const progress = smoothstep(elapsed / pulse.fadeOut);
+      return FIRE_GLOW_MAX_ALPHA + (minimumAlpha - FIRE_GLOW_MAX_ALPHA) * progress;
+    }
+    if (elapsed < lowHoldEnd) return minimumAlpha;
+
+    const progress = smoothstep((elapsed - lowHoldEnd) / pulse.fadeIn);
+    return minimumAlpha + (FIRE_GLOW_MAX_ALPHA - minimumAlpha) * progress;
+  }
+
+  function createFireGlowCycle(now) {
+    return {
+      start: now + 500 + Math.random() * 2200,
+      fadeOut: 260 + Math.random() * 420,
+      lowHold: 90 + Math.random() * 360,
+      fadeIn: 340 + Math.random() * 520,
+      minimumFactor: .25 + Math.random() * .3
+    };
+  }
+
+  function smoothstep(value) {
+    const t = clamp(value, 0, 1);
+    return t * t * (3 - 2 * t);
+  }
+
   function drawHouse(houseX = state.houseX, houseY = currentHouseY(), built = state.built, active = true) {
-    if (drawSprite("igloo", houseX, houseY + 4, IGLOO_W, IGLOO_H - 4)) {
+    const stageIndex = Math.max(0, Math.min(2, built));
+    const stageImageReady = built < 3 && iglooStageImagesReady[stageIndex];
+    if (stageImageReady) {
+      ctx.drawImage(iglooStageImages[stageIndex], houseX, houseY + 4, IGLOO_W, IGLOO_H - 4);
+    }
+    const completeSpriteDrawn = !stageImageReady && drawSprite("igloo", houseX, houseY + 4, IGLOO_W, IGLOO_H - 4);
+    if (stageImageReady || completeSpriteDrawn) {
       const missingPatches = [
         { x: houseX + 20, y: houseY + 25 },
         { x: houseX + 37, y: houseY + 12 },
         { x: houseX + 55, y: houseY + 24 }
       ];
-      for (let i = built; i < 3; i++) {
-        const patch = missingPatches[i];
-        ctx.fillStyle = "#0b426d";
-        ctx.beginPath();
-        ctx.moveTo(patch.x, patch.y + 4); ctx.lineTo(patch.x + 5, patch.y);
-        ctx.lineTo(patch.x + 16, patch.y + 2); ctx.lineTo(patch.x + 18, patch.y + 11);
-        ctx.lineTo(patch.x + 10, patch.y + 16); ctx.lineTo(patch.x + 1, patch.y + 12);
-        ctx.closePath(); ctx.fill();
-        ctx.strokeStyle = "#67c7e2"; ctx.lineWidth = 1.5; ctx.stroke();
+      if (!stageImageReady) {
+        for (let i = built; i < 3; i++) {
+          const patch = missingPatches[i];
+          ctx.fillStyle = "#0b426d";
+          ctx.beginPath();
+          ctx.moveTo(patch.x, patch.y + 4); ctx.lineTo(patch.x + 5, patch.y);
+          ctx.lineTo(patch.x + 16, patch.y + 2); ctx.lineTo(patch.x + 18, patch.y + 11);
+          ctx.lineTo(patch.x + 10, patch.y + 16); ctx.lineTo(patch.x + 1, patch.y + 12);
+          ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = "#67c7e2"; ctx.lineWidth = 1.5; ctx.stroke();
+        }
       }
 
       if (active && built < 3) {
@@ -1367,10 +1700,10 @@
     }
   }
 
-  function draw() {
+  function draw(timeSeconds) {
     const vh = viewHeight();
     ctx.setTransform(canvas.width / VIEW_W, 0, 0, canvas.width / VIEW_W, 0, 0);
-    drawSea(vh); drawIsland(vh);
+    drawSea(vh, timeSeconds); drawIsland(vh, timeSeconds);
     if (state.flash > 0) { ctx.fillStyle = "rgba(255,117,94,.22)"; ctx.fillRect(0, 0, VIEW_W, vh); }
     if (state.paused && state.phase !== "intro") {
       ctx.fillStyle = "rgba(3,15,35,.67)"; ctx.fillRect(0, 0, VIEW_W, vh);
@@ -1381,7 +1714,7 @@
 
   function frame(time) {
     const dt = Math.min(.034, (time - (state.lastTime || time)) / 1000);
-    state.lastTime = time; update(dt); draw(); requestAnimationFrame(frame);
+    state.lastTime = time; update(dt); draw(time * .001); requestAnimationFrame(frame);
   }
 
   document.addEventListener("keydown", e => {

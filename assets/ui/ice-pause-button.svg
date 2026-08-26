@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="88" height="88" viewBox="0 0 88 88">
+  <defs>
+    <linearGradient id="ice" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#efffff"/>
+      <stop offset=".28" stop-color="#aef4ff"/>
+      <stop offset=".62" stop-color="#36c9eb"/>
+      <stop offset="1" stop-color="#087bb9"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#0a3d76"/>
+      <stop offset="1" stop-color="#031b42"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="5" stdDeviation="3" flood-color="#00152e" flood-opacity=".8"/>
+    </filter>
+  </defs>
+  <path d="M23 4H65L84 23V65L65 84H23L4 65V23Z" fill="url(#ice)" stroke="#e8ffff" stroke-width="4" filter="url(#shadow)"/>
+  <path d="M26 14H62L74 26V62L62 74H26L14 62V26Z" fill="#0c78ae" stroke="#24c8e9" stroke-width="3"/>
+  <path d="M29 21H59L67 29V59L59 67H29L21 59V29Z" fill="url(#panel)" stroke="#a7f4ff" stroke-width="3"/>
+  <path d="M10 27 23 14M65 14 78 27M10 61l13 13M65 74l13-13" stroke="#6de7fa" stroke-width="3"/>
+</svg>
